@@ -36,7 +36,7 @@ def henon_heiles(lam=1.0):
         return np.array([x + 2.0 * lam * x * y,
                          y + lam * (x * x - y * y)])
 
-    return evolute.HamiltonianSystem(2, V, grad_V, name='Hénon-Heiles')
+    return evolute.HamiltonianSystem(2, V, grad_V, name='Hénon–Heiles')
 
 
 def main(h=0.05, steps=4000):
