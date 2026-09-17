@@ -4,10 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "evolute"
-version = "0.1.0"
-description = "Energy- and VOLUme-preserving Time integration Engine"
-requires-python = ">=3.9"
+version = "0.2.0"
 dependencies = [
 	"numpy",
 	"scipy"
 ]
+requires-python = ">=3.9"
+authors = [
+  { name = "Ben McKeon", email = "mckeon.ben@ul.ie" },
+]
+description = "Energy- and VOLUme-preserving Time integration Engine."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE.*"]
+
+[project.urls]
+Repository = "https://github.com/mckeon-ben/evolute"

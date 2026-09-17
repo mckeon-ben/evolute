@@ -18,7 +18,7 @@ problems.
 - [Methods](#methods)
 - [How `EnergyVolumeSplit` works](#how-energyvolumesplit-works)
 - [Limitations](#limitations)
-- [Experiments](#experiments)
+- [Examples](#examples)
 - [Package layout](#package-layout)
 - [References](#references)
 
@@ -89,7 +89,7 @@ initial energy is zero in exact arithmetic, as for rays on `H = 0`: in
 floating point it is then round-off.
 
 System-specific definitions live in user scripts rather than in the
-package; see [Experiments](#experiments).
+package; see [Examples](#examples).
 
 ## Methods
 
@@ -152,9 +152,9 @@ gives the substeps in full.
   adaptively to avoid the singular set would break volume
   preservation.
 
-## Experiments
+## Examples
 
-The scripts in `experiments/` define their test problems locally and
+The scripts in `examples/` define their test problems locally and
 print the maximum energy error of every method over 4000 steps of size
 `h = 0.05`:
 
@@ -165,38 +165,44 @@ print the maximum energy error of every method over 4000 steps of size
   three dimensions. Rays lie on `H = 0`, so the script reports the
   absolute energy error.
 
-Run them from the `experiments/` directory, for example:
+Run them from the `examples/` directory, for example:
 
 ```bash
-cd experiments
+cd examples
 python kepler.py
 ```
 
 ## Package layout
 
 ```text
-src/evolute/
+pyproject.toml
+README.md
+evolute/
     __init__.py              public API
     system.py                HamiltonianSystem, canonical_J
     integrator.py            OneStepMethod, ExplicitMethod, ImplicitMethod
     energy_volume_split.py   EnergyVolumeSplit
     symplectic.py            Symplectic (baseline)
     discrete_gradient.py     ItohAbe, Gonzalez (baselines)
-experiments/
+examples/
     kepler.py, henon_heiles.py, maxwell_fisheye.py
 ```
 
 ## References
 
-- K. Feng and Z. Shang, Volume-preserving algorithms for source-free
-  dynamical systems, *Numer. Math.* 71 (1995).
-- Z. Ge and J. E. Marsden, Lie-Poisson Hamilton-Jacobi theory and
-  Lie-Poisson integrators, *Phys. Lett. A* 133 (1988).
-- O. Gonzalez, Time integration and discrete Hamiltonian systems,
-  *J. Nonlinear Sci.* 6 (1996).
-- E. Hairer, C. Lubich and G. Wanner, *Geometric Numerical
-  Integration*, 2nd ed., Springer (2006).
-- T. Itoh and K. Abe, Hamiltonian-conserving discrete canonical
-  equations based on variational difference quotients, *J. Comput.
-  Phys.* 76 (1988).
-- P. F. Tupper, arXiv:math/0607641.
+- Hairer, E., Lubich, C. and Wanner, G., 2006. *Geometric numerical
+  integration: Structure-preserving algorithms for ordinary
+  differential equations*. 2nd ed., Springer.
+- Zhong, G. and Marsden, J.E., 1988. Lie-Poisson Hamilton-Jacobi
+  theory and Lie-Poisson integrators. *Physics Letters A, 133*(3),
+  pp.134-139.
+- Kang, F. and Zai-Jiu, S., 1995. Volume-preserving algorithms for
+  source-free dynamical systems. *Numerische Mathematik, 71*(4),
+  pp.451-463.
+- Itoh, T. and Abe, K., 1988. Hamiltonian-conserving discrete
+  canonical equations based on variational difference quotients.
+  *Journal of Computational Physics, 76*(1), pp.85-102.
+- Gonzalez, O., 1996. Time integration and discrete Hamiltonian
+  systems. *Journal of Nonlinear Science, 6*(5), pp.449-467.
+- Tupper, P.F., 2006. A Non-Existence Result for Hamiltonian
+  Integrators. *arXiv preprint math/0607641*.
