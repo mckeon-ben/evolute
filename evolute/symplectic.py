@@ -1,5 +1,11 @@
 '''
 Symplectic Euler and Stormer-Verlet (comparison baselines).
+
+References
+----------
+Hairer, E., Lubich, C. and Wanner, G., 2006. Geometric numerical
+integration: Structure-preserving algorithms for ordinary
+differential equations. 2nd ed., Springer.
 '''
 
 import numpy as np

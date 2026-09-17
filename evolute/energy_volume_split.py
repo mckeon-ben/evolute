@@ -25,6 +25,18 @@ adjoint (substeps reversed, each replaced by its adjoint Euler variant).
 
 The change of variables is singular where p1 = p2 = 0, and the scalar
 equations are contractions only while h |grad V| / rho < 1.
+
+References
+----------
+Feng, K. and Shang, Z., 1995. Volume-preserving algorithms for
+source-free dynamical systems. Numerische Mathematik, 71(4),
+pp.451-463.
+
+Ge, Z. and Marsden, J.E., 1988. Lie-Poisson Hamilton-Jacobi theory
+and Lie-Poisson integrators. Physics Letters A, 133(3), pp.134-139.
+
+Tupper, P.F., 2006. A Non-Existence Result for Hamiltonian
+Integrators. arXiv preprint math/0607641.
 '''
 
 import numpy as np

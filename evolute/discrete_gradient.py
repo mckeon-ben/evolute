@@ -8,6 +8,15 @@ A discrete gradient gbar(z0, z1) satisfies
 so the method z1 = z0 + h J gbar(z0, z1) gives
 H(z1) - H(z0) = h gbar . J gbar = 0, since J is skew. Energy is
 therefore conserved exactly, up to solver tolerance, for any smooth H.
+
+References
+----------
+Gonzalez, O., 1996. Time integration and discrete Hamiltonian
+systems. Journal of Nonlinear Science, 6(5), pp.449-467.
+
+Itoh, T. and Abe, K., 1988. Hamiltonian-conserving discrete
+canonical equations based on variational difference quotients.
+Journal of Computational Physics, 76(1), pp.85-102.
 '''
 
 from abc import abstractmethod
