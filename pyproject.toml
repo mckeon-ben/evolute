@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -16,7 +16,7 @@ authors = [
 description = "Energy- and VOLUme-preserving Time integration Engine."
 readme = "README.md"
 license = "MIT"
-license-files = ["LICENSE.*"]
+license-files = ["LICENSE"]
 
 [project.urls]
 Repository = "https://github.com/mckeon-ben/evolute"

@@ -20,16 +20,21 @@ problems.
 - [Limitations](#limitations)
 - [Examples](#examples)
 - [Package layout](#package-layout)
+- [Licence](#licence)
 - [References](#references)
 
 ## Installation
 
-`evolute` needs Python 3.9 or later, NumPy and SciPy. From the
-repository root:
+`evolute` needs Python 3.9 or later, NumPy and SciPy:
 
 ```bash
-pip install -e .
+git clone https://github.com/mckeon-ben/evolute.git
+cd evolute
+pip install .
 ```
+
+Use `pip install -e .` instead to work on the code in place. The
+scripts in `examples/` need nothing further.
 
 ## Quick start
 
@@ -93,8 +98,10 @@ package; see [Examples](#examples).
 
 ## Methods
 
-Every method has `step(system, z0, h)`, returning the new state, and
-the attributes `name` and `order`.
+Every method has `step(system, z0, h)`, which returns the new state as
+a new array and leaves `z0` unchanged, and the attributes `name` and
+`order`. A run is a loop over `step`, as in the
+[quick start](#quick-start).
 
 | Class               | `symmetric` | Order | Energy | Volume | Symplectic |
 | ------------------- | ----------- | ----- | ------ | ------ | ---------- |
@@ -165,11 +172,10 @@ print the maximum energy error of every method over 4000 steps of size
   three dimensions. Rays lie on `H = 0`, so the script reports the
   absolute energy error.
 
-Run them from the `examples/` directory, for example:
+The scripts only print, so they can be run from any directory:
 
 ```bash
-cd examples
-python kepler.py
+python examples/kepler.py
 ```
 
 ## Package layout
@@ -177,6 +183,7 @@ python kepler.py
 ```text
 pyproject.toml
 README.md
+LICENSE
 evolute/
     __init__.py              public API
     system.py                HamiltonianSystem, canonical_J
@@ -188,15 +195,19 @@ examples/
     kepler.py, henon_heiles.py, maxwell_fisheye.py
 ```
 
+## Licence
+
+MIT; see [LICENSE](LICENSE).
+
 ## References
 
 - Hairer, E., Lubich, C. and Wanner, G., 2006. *Geometric numerical
   integration: Structure-preserving algorithms for ordinary
   differential equations*. 2nd ed., Springer.
-- Zhong, G. and Marsden, J.E., 1988. Lie-Poisson Hamilton-Jacobi
+- Ge, Z. and Marsden, J.E., 1988. Lie-Poisson Hamilton-Jacobi
   theory and Lie-Poisson integrators. *Physics Letters A, 133*(3),
   pp.134-139.
-- Kang, F. and Zai-Jiu, S., 1995. Volume-preserving algorithms for
+- Feng, K. and Shang, Z., 1995. Volume-preserving algorithms for
   source-free dynamical systems. *Numerische Mathematik, 71*(4),
   pp.451-463.
 - Itoh, T. and Abe, K., 1988. Hamiltonian-conserving discrete
