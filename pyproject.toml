@@ -8,6 +8,7 @@ version = "0.2.0"
 dependencies = [
   "numpy",
   "scipy",
+  "matplotlib",
 ]
 requires-python = ">=3.9"
 authors = [
@@ -20,3 +21,6 @@ license-files = ["LICENSE"]
 
 [project.urls]
 Repository = "https://github.com/mckeon-ben/evolute"
+
+[tool.setuptools.packages.find]
+include = ["evolute*"]
