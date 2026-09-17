@@ -107,14 +107,14 @@ a new array and leaves `z0` unchanged, and the attributes `name` and
 | ------------------- | ------------------- | ----- | ------ | ------ |
 | Energy-volume split | `EnergyVolumeSplit` | 2     | exact  | exact  |
 | Energy-volume split | `EnergyVolumeSplit` | 1     | exact  | exact  |
-| Stormer-Verlet      | `Symplectic`        | 2     | no     | exact  |
+| Störmer–Verlet      | `Symplectic`        | 2     | no     | exact  |
 | Symplectic Euler    | `Symplectic`        | 1     | no     | exact  |
 | Gonzalez            | `Gonzalez`          | 2     | exact  | no     |
-| Itoh-Abe            | `ItohAbe`           | 1     | exact  | no     |
+| Itoh–Abe            | `ItohAbe`           | 1     | exact  | no     |
 
 `EnergyVolumeSplit` and `Symplectic` take `symmetric`, which defaults
 to `True` and gives the second-order method; `False` gives the
-first-order one. Only Stormer-Verlet and symplectic Euler are
+first-order one. Only Störmer–Verlet and symplectic Euler are
 symplectic.
 
 "Exact" means up to round-off, and for the implicit methods up to the
@@ -168,8 +168,8 @@ print the maximum energy error of every method over 4000 steps of size
 `h = 0.05`:
 
 - `kepler.py`: the planar Kepler problem, with angular momentum and
-  the Laplace-Runge-Lenz vector as invariants;
-- `henon_heiles.py`: the Henon-Heiles system;
+  the Laplace–Runge–Lenz vector as invariants;
+- `henon_heiles.py`: the Hénon–Heiles system;
 - `maxwell_fisheye.py`: the Maxwell fish-eye lens in ray optics, in
   three dimensions. Rays lie on `H = 0`, so the script reports the
   absolute energy error.

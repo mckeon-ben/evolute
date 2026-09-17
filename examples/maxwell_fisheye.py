@@ -42,7 +42,7 @@ def maxwell_fisheye(n0=1.0, R=1.0):
         return 2.0 * n0 ** 2 * q / (R ** 2 * (1.0 + q @ q / R ** 2) ** 3)
 
     system = evolute.HamiltonianSystem(3, V, grad_V,
-                                       name="Maxwell fish-eye")
+                                       name='Maxwell fish-eye')
     system.index = index
     return system
 
@@ -92,9 +92,9 @@ def main(h=0.05, steps=4000):
         for _ in range(steps):
             z = method.step(system, z, h)
             err = max(err, system.energy_error(z0, z, relative=False))
-        label = f"{method.name} (order {method.order})"
-        print(f"{label:32s} max |H - H0| {err:.2e}")
+        label = f'{method.name} (order {method.order})'
+        print(f'{label:32s} max |H - H0| {err:.2e}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

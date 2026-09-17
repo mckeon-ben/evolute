@@ -36,10 +36,10 @@ def kepler(mu=1.0):
     def invariants(q, p):
         L = q[0] * p[1] - q[1] * p[0]
         A = np.array([p[1] * L, -p[0] * L]) - mu * q / np.linalg.norm(q)
-        return {"angular_momentum": L, "lrl_x": A[0], "lrl_y": A[1]}
+        return {'angular_momentum': L, 'lrl_x': A[0], 'lrl_y': A[1]}
 
     return evolute.HamiltonianSystem(2, V, grad_V, invariants=invariants,
-                                     name="Kepler")
+                                     name='Kepler')
 
 
 def main(h=0.05, steps=4000):
@@ -63,9 +63,9 @@ def main(h=0.05, steps=4000):
         for _ in range(steps):
             z = method.step(system, z, h)
             err = max(err, system.energy_error(z0, z))
-        label = f"{method.name} (order {method.order})"
-        print(f"{label:32s} max energy error {err:.2e}")
+        label = f'{method.name} (order {method.order})'
+        print(f'{label:32s} max energy error {err:.2e}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

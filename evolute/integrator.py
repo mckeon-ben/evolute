@@ -159,9 +159,9 @@ class ImplicitMethod(OneStepMethod):
         '''
         guess = z0 + h * system.vector_field(z0)   # explicit Euler
         sol = root(lambda z1: self.residual(system, z0, z1, h), guess,
-                   method="hybr", options={"xtol": self.xtol})
+                   method='hybr', options={'xtol': self.xtol})
         # MINPACK reports "no further improvement" once it hits round-off
         # below xtol; that is a converged solve, so judge by the residual.
         if not sol.success and np.max(np.abs(sol.fun)) > 1e-10:
-            raise RuntimeError(f"{self.name}: {sol.message}")
+            raise RuntimeError(f'{self.name}: {sol.message}')
         return sol.x

@@ -23,7 +23,7 @@ from abc import abstractmethod
 
 import numpy as np
 
-from evolute.integrator import ImplicitMethod
+from .integrator import ImplicitMethod
 
 
 class DiscreteGradientMethod(ImplicitMethod):
@@ -108,7 +108,7 @@ class ItohAbe(DiscreteGradientMethod):
         Passed to ImplicitMethod (xtol).
     '''
 
-    name = "Itoh-Abe"
+    name = 'Itoh-Abe'
     order = 1
 
     def __init__(self, dz_min=np.finfo(float).eps ** (1 / 3), **kwargs):
@@ -177,7 +177,7 @@ class Gonzalez(DiscreteGradientMethod):
         Passed to ImplicitMethod (xtol).
     '''
 
-    name = "Gonzalez"
+    name = 'Gonzalez'
     order = 2
 
     def discrete_gradient(self, system, z0, z1):

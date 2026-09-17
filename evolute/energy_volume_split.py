@@ -42,7 +42,7 @@ Integrators. arXiv preprint math/0607641.
 import numpy as np
 from scipy.optimize import newton
 
-from evolute.integrator import OneStepMethod
+from .integrator import OneStepMethod
 
 
 class EnergyVolumeSplit(OneStepMethod):
@@ -64,7 +64,7 @@ class EnergyVolumeSplit(OneStepMethod):
     def __init__(self, symmetric=True, xtol=1e-14):
         self.symmetric = symmetric
         self.order = 2 if symmetric else 1
-        self.name = "Energy-volume split"
+        self.name = 'Energy-volume split'
         self.xtol = xtol
 
     def step(self, system, z0, h):
@@ -139,8 +139,8 @@ class EnergyVolumeSplit(OneStepMethod):
         r2 = 2.0 * (E - system.V(q) - system.T(pr))
         if r2 <= 0.0:
             raise ValueError(
-                "EnergyVolumeSplit: p1^2 + p2^2 <= 0 in the new "
-                "variables (singular set p1 = p2 = 0); reduce the step size"
+                'EnergyVolumeSplit: p1^2 + p2^2 <= 0 in the new '
+                'variables (singular set p1 = p2 = 0); reduce the step size'
             )
         return np.sqrt(r2)
 

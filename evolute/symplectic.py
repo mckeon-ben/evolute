@@ -10,7 +10,7 @@ differential equations. 2nd ed., Springer.
 
 import numpy as np
 
-from evolute.integrator import ExplicitMethod
+from .integrator import ExplicitMethod
 
 
 class Symplectic(ExplicitMethod):
@@ -33,7 +33,7 @@ class Symplectic(ExplicitMethod):
     def __init__(self, symmetric=True):
         self.symmetric = symmetric
         self.order = 2 if symmetric else 1
-        self.name = "Störmer-Verlet" if symmetric else "Symplectic Euler"
+        self.name = 'Störmer-Verlet' if symmetric else 'Symplectic Euler'
 
     def step(self, system, z0, h):
         '''

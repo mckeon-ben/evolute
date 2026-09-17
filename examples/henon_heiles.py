@@ -36,7 +36,7 @@ def henon_heiles(lam=1.0):
         return np.array([x + 2.0 * lam * x * y,
                          y + lam * (x * x - y * y)])
 
-    return evolute.HamiltonianSystem(2, V, grad_V, name="Hénon-Heiles")
+    return evolute.HamiltonianSystem(2, V, grad_V, name='Hénon-Heiles')
 
 
 def main(h=0.05, steps=4000):
@@ -60,9 +60,9 @@ def main(h=0.05, steps=4000):
         for _ in range(steps):
             z = method.step(system, z, h)
             err = max(err, system.energy_error(z0, z))
-        label = f"{method.name} (order {method.order})"
-        print(f"{label:32s} max energy error {err:.2e}")
+        label = f'{method.name} (order {method.order})'
+        print(f'{label:32s} max energy error {err:.2e}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

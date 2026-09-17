@@ -128,19 +128,19 @@ class HamiltonianSystem:
     def __init__(self, n, V, grad_V, T=None, grad_T=None,
                  invariants=None, name=None):
         if n < 2:
-            raise ValueError("n must be at least 2")
+            raise ValueError('n must be at least 2')
         if (T is None) != (grad_T is None):
-            raise ValueError("supply both T and grad_T, or neither")
+            raise ValueError('supply both T and grad_T, or neither')
         self.n = n
         self.V = V
         self.grad_V = grad_V
         self.T = T if T is not None else _default_T
         self.grad_T = grad_T if grad_T is not None else _default_grad_T
         self._invariants = invariants
-        self.name = name or "system"
+        self.name = name or 'system'
 
     def __repr__(self):
-        return f"HamiltonianSystem(name={self.name!r}, n={self.n})"
+        return f'HamiltonianSystem(name={self.name!r}, n={self.n})'
 
     @property
     def dim(self):
