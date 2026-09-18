@@ -230,8 +230,5 @@ MIT; see [LICENSE](LICENSE).
 - Itoh, T. and Abe, K., 1988. Hamiltonian-conserving discrete
   canonical equations based on variational difference quotients.
   *Journal of Computational Physics, 76*(1), pp.85-102.
-- Liu, W., 2022. Ray tracing in concentric gradient-index media:
-  optical Binet equation. *Journal of the Optical Society of America A,
-  39*(6), pp.1025-1033.
 - Tupper, P.F., 2006. A Non-Existence Result for Hamiltonian
   Integrators. *arXiv preprint math/0607641*.
