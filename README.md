@@ -34,7 +34,8 @@ pip install .
 ```
 
 Use `pip install -e .` instead to work on the code in place. The
-scripts in `examples/` need nothing further.
+scripts in `examples/` also need matplotlib and a LaTeX installation;
+see [Examples](#examples).
 
 ## Quick start
 
@@ -163,22 +164,33 @@ gives the substeps in full.
 
 ## Examples
 
-The scripts in `examples/` define their test problems locally and
-print the maximum energy error of every method over 4000 steps of size
-`h = 0.05`:
+The scripts in `examples/` integrate every method twice over and write
+the results to JSON: a convergence study to a fixed final time at a
+sequence of step counts, and a long run at a single step size recording
+the energy error.
 
-- `kepler.py`: the planar Kepler problem, with angular momentum and
-  the Laplace–Runge–Lenz vector as invariants;
-- `henon_heiles.py`: the Hénon–Heiles system;
-- `maxwell_fisheye.py`: the Maxwell fish-eye lens in ray optics, in
-  three dimensions. Rays lie on `H = 0`, so the script reports the
-  absolute energy error.
+| Script               | System                                     |
+| -------------------- | ------------------------------------------ |
+| `kepler.py`          | Planar Kepler problem                      |
+| `henon_heiles.py`    | Hénon–Heiles system                        |
+| `maxwell_fisheye.py` | Maxwell fish-eye lens in ray optics, n = 3 |
 
-The scripts only print, so they can be run from any directory:
+`plotting.py` turns the data files into error estimates, observed
+orders and figures, each pairing the energy error against time with the
+position error against step size. The scripts can be run from any
+directory: data files always go to `examples/data/` and figures to
+`examples/plots/`.
 
 ```bash
 python examples/kepler.py
+python examples/plotting.py kepler          # one data file
+python examples/plotting.py                 # every data file
 ```
+
+`plotting.py` needs matplotlib and, by default, a LaTeX installation
+with the `helvet` and `sansmath` packages, since it typesets through
+LaTeX. Set `USETEX = False` at the top of the script to use
+matplotlib's own renderer instead.
 
 ## Package layout
 
@@ -195,6 +207,7 @@ evolute/
     discrete_gradient.py     ItohAbe, Gonzalez (baselines)
 examples/
     kepler.py, henon_heiles.py, maxwell_fisheye.py
+    plotting.py              tables and figures
 ```
 
 ## Licence
@@ -217,5 +230,8 @@ MIT; see [LICENSE](LICENSE).
 - Itoh, T. and Abe, K., 1988. Hamiltonian-conserving discrete
   canonical equations based on variational difference quotients.
   *Journal of Computational Physics, 76*(1), pp.85-102.
+- Liu, W., 2022. Ray tracing in concentric gradient-index media:
+  optical Binet equation. *Journal of the Optical Society of America A,
+  39*(6), pp.1025-1033.
 - Tupper, P.F., 2006. A Non-Existence Result for Hamiltonian
   Integrators. *arXiv preprint math/0607641*.
