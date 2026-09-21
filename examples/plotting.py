@@ -135,6 +135,16 @@ MARKERS = {
     'EnergyVolumeSplit': 'D',
 }
 
+# Okabe-Ito, the standard colourblind-safe qualitative palette.
+PALETTE = [
+    '#0072B2',  # blue
+    '#D55E00',  # vermillion
+    '#009E73',  # bluish green
+    '#CC79A7',  # reddish purple
+    '#E69F00',  # orange
+    '#56B4E9',  # sky blue
+]
+
 FALLBACK_MARKERS = ['v', 'P', 'X', '*', '<', '>']
 
 # Number of markers along each time history.
@@ -198,7 +208,8 @@ def resolve(name):
 
     Tries the working directory before DATA_DIR so an explicit path
     always wins, and appends the .json suffix only when the name does
-    not already carry one.
+    not already carry one -- appending unconditionally would mangle a
+    name that has dots in it for other reasons.
 
     Parameters
     ----------
@@ -215,13 +226,15 @@ def resolve(name):
     SystemExit
         If no matching file exists.
     '''
-    candidates = [Path(name), DATA_DIR / name]
-    if not name.endswith('.json'):
-        candidates += [Path(name + '.json'), DATA_DIR / (name + '.json')]
-    for path in candidates:
-        if path.is_file():
-            return path
-    raise SystemExit(f'no data file matching {name!r} in . or {DATA_DIR}/')
+    given = Path(name)
+    names = ([given] if given.suffix == '.json'
+             else [given, given.with_name(given.name + '.json')])
+    for base in (Path('.'), DATA_DIR):
+        for candidate in names:
+            full = candidate if candidate.is_absolute() else base / candidate
+            if full.is_file():
+                return full
+    raise SystemExit(f'{name}: no such data file in . or {DATA_DIR}/')
 
 
 def find_all():
@@ -240,7 +253,7 @@ def find_all():
     '''
     files = sorted(DATA_DIR.glob('*.json'))
     if not files:
-        raise SystemExit(f'no data files in {DATA_DIR}/')
+        raise SystemExit(f'no .json files found in {DATA_DIR}/')
     return files
 
 
@@ -271,7 +284,7 @@ def load(filename):
     for key in ('experiment', 'dt', 'reference', 'energy_time',
                 'method_order', 'methods'):
         if key not in record:
-            raise ValueError(f'{filename}: missing key {key!r}')
+            raise ValueError(f'{filename}: missing required key {key!r}')
     return record
 
 
@@ -297,7 +310,7 @@ def assign_styles(record):
     colours, markers, styles = {}, {}, {}
     for name in record['method_order']:
         cls = record['methods'][name]['class']
-        colours.setdefault(cls, f'C{len(colours)}')
+        colours.setdefault(cls, PALETTE[len(colours) % len(PALETTE)])
         markers.setdefault(cls, MARKERS.get(
             cls, FALLBACK_MARKERS[len(markers) % len(FALLBACK_MARKERS)]))
         styles[name] = {
@@ -307,6 +320,89 @@ def assign_styles(record):
             'marker': markers[cls],
         }
     return styles
+
+
+def place_label(ax, text, x, y, renderer, side='below'):
+    '''
+    Label a guide line where the label overlaps no line.
+
+    Tries the preferred side of the guide at points along it, from its
+    middle outwards, before the other side. Below the guide the label
+    goes to the right of the point, then directly under it; above, to
+    the left, then directly over it. Offsetting it sideways first keeps
+    it off a rising guide however steep. The first placement that lies
+    inside the axes, clear of the frame by the same gap as the guide,
+    and touches no line or marker drawn on them is kept; if none does,
+    the label takes the first placement tried. Call once the layout is
+    final, since the test is made in display coordinates.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Axes holding the guide.
+    text : str
+        Label text.
+    x, y : np.ndarray
+        Points of the guide, on log-log axes.
+    renderer : matplotlib.backend_bases.RendererBase
+        Renderer used to measure the label.
+    side : {'below', 'above'}, optional
+        Side of the guide tried first; the one away from the data, so
+        the label cannot be read as labelling a curve. Default 'below'.
+
+    Returns
+    -------
+    matplotlib.text.Annotation
+        The placed label.
+    '''
+    lx, ly = np.log(x), np.log(y)
+    order = np.argsort(lx)
+    lines = ax.get_lines()
+    paths = [line.get_transform().transform_path(line.get_path())
+             for line in lines]
+    points = [line.get_transform().transform(line.get_xydata())
+              for line in lines if line.get_marker() not in (None, 'None')]
+    pad = renderer.points_to_pixels(plt.rcParams['lines.markersize'])
+    gap = 4
+    # The label keeps the same gap from the frame as from the guide.
+    frame = ax.get_window_extent(renderer).padded(
+        -renderer.points_to_pixels(gap))
+    label = ax.annotate(text, xy=(x[0], y[0]), xytext=(0, 0),
+                        textcoords='offset points')
+    # Offset in points, then horizontal and vertical alignment.
+    placements = {
+        'below': [((gap, -gap), 'left', 'top'), ((0, -gap), 'center', 'top')],
+        'above': [((-gap, gap), 'right', 'bottom'),
+                  ((0, gap), 'center', 'bottom')],
+    }
+    other = 'above' if side == 'below' else 'below'
+    candidates = []
+    for sides in (placements[side], placements[other]):
+        for fraction in (0.5, 0.3, 0.7, 0.1, 0.9):
+            at = lx.min() + fraction * (lx.max() - lx.min())
+            xy = (np.exp(at), np.exp(np.interp(at, lx[order], ly[order])))
+            candidates += [(xy, placement) for placement in sides]
+
+    def put(xy, placement):
+        offset, ha, va = placement
+        label.xy = xy
+        label.set_position(offset)
+        label.set_ha(ha)
+        label.set_va(va)
+
+    for xy, placement in candidates:
+        put(xy, placement)
+        box = label.get_window_extent(renderer)
+        inside = (frame.x0 <= box.x0 and box.x1 <= frame.x1
+                  and frame.y0 <= box.y0 and box.y1 <= frame.y1)
+        clear = (not any(path.intersects_bbox(box, filled=False)
+                         for path in paths)
+                 and not any(box.padded(pad).contains(px, py)
+                             for pts in points for px, py in pts))
+        if inside and clear:
+            return label
+    put(*candidates[0])
+    return label
 
 
 def differences(states, dt, order, reference=None):
@@ -500,28 +596,29 @@ def plot(record, panels, filename, layout='screen'):
     h = panels[record['method_order'][0]]['h']
     fine = h[len(h) // 2 - 1:]
     lowest = min(finest)
+    guides = []
     for order, errs in sorted(finest.items()):
         above = order == lowest
         e0 = 2.0 * max(errs) if above else 0.5 * min(errs)
-        ax_c.loglog(fine, e0 * (fine / fine[-1]) ** order, color='0.5',
-                    linestyle=':')
-        h_mid = np.sqrt(fine[0] * fine[-1])
-        ax_c.annotate(rf'$\mathcal{{O}}(h^{order})$' if order > 1
-                      else r'$\mathcal{O}(h)$',
-                      xy=(h_mid, e0 * (h_mid / fine[-1]) ** order),
-                      xytext=(0, 5 if above else -5),
-                      textcoords='offset points', ha='center',
-                      va='bottom' if above else 'top', color='k')
+        guide = e0 * (fine / fine[-1]) ** order
+        ax_c.loglog(fine, guide, color='0.5', linestyle=':')
+        guides.append((rf'$O\left(h^{{{order}}}\right)$' if order > 1
+                       else r'$O\left(h\right)$', guide,
+                       'above' if above else 'below'))
     ax_c.set_xscale('log', base=2)
+    # Three times matplotlib's default headroom, so the guide labels have
+    # room above the upper guide and below the lower one.
+    ax_c.margins(y=0.15)
     ax_c.set_xlabel('step size $h$')
     ax_c.set_ylabel(r'$\|q_N - q(T)\|_2$' if record['reference']['state']
-                    else r'estimated $\|q_N - q(T)\|_2$')
+                    else r'Estimated $\|q_N - q(T)\|_2$')
     ax_c.set_title(f'position error at $T = {record["parameters"]["T"]:.4g}$')
 
     if layout == 'print':
-        # One legend under the stacked panels, where it covers no data.
+        # Panels are labelled by letter alone; the caption describes them.
         for i, ax in enumerate(axes):
-            ax.set_title(f'({chr(ord("a") + i)}) {ax.get_title()}')
+            ax.set_title(f'({chr(ord("a") + i)})')
+        # One legend under the stacked panels, where it covers no data.
         handles, labels = ax_c.get_legend_handles_labels()
         legend_height = 0.6
         fig.tight_layout(rect=(0, legend_height / fig.get_figheight(), 1, 1))
@@ -531,6 +628,11 @@ def plot(record, panels, filename, layout='screen'):
         ax_c.legend(loc='center left', bbox_to_anchor=(1.02, 0.5))
         fig.suptitle(record['experiment'])
         fig.tight_layout()
+    # The guides are labelled once the layout is final, where no line or
+    # marker is in the way.
+    renderer = fig.canvas.get_renderer()
+    for text, guide, side in guides:
+        place_label(ax_c, text, fine, guide, renderer, side)
     # Print figures keep their exact width; screen ones are cropped.
     fig.savefig(filename,
                 bbox_inches=None if layout == 'print' else 'tight')
@@ -545,14 +647,16 @@ def main():
     Raises
     ------
     SystemExit
-        If -o is given with several data files.
+        If -o is given with several data files, or if any file is
+        skipped.
     '''
     parser = argparse.ArgumentParser(
         description=' '.join(__doc__.split('\n\n')[0].split()))
     parser.add_argument('results', nargs='*',
-                        help='data files; default is every file in '
+                        help=f'data files, by path or bare name; '
+                             f'omit to plot every .json in '
                              f'{DATA_DIR}/')
-    parser.add_argument('-o', '--output',
+    parser.add_argument('-o', '--output', default=None,
                         help=f'output figure (default: {PLOT_DIR}/<name>'
                              f'{FIGURE_SUFFIX}, or {PRINT_SUFFIX} with '
                              f'--print)')
@@ -560,23 +664,40 @@ def main():
                         help='draw at the print size of the journal')
     args = parser.parse_args()
 
-    files = [resolve(name) for name in args.results] if args.results \
-        else find_all()
-    if args.output and len(files) > 1:
-        raise SystemExit('-o takes a single data file')
-
     use_latex()
     layout, suffix = 'screen', FIGURE_SUFFIX
     if args.print_layout:
         use_print_layout()
         layout, suffix = 'print', PRINT_SUFFIX
-    PLOT_DIR.mkdir(exist_ok=True)
+
+    files = ([resolve(name) for name in args.results] if args.results
+             else find_all())
+    if args.output and len(files) > 1:
+        raise SystemExit('-o takes a single data file; with several, '
+                         'each figure is named after its own input')
+
+    if not args.output:
+        PLOT_DIR.mkdir(parents=True, exist_ok=True)
+
+    failed = 0
     for path in files:
-        record = load(path)
+        output = args.output or str(
+            PLOT_DIR / (path.stem + suffix))
+        try:
+            record = load(path)
+        except (ValueError, KeyError) as exc:
+            # Report and carry on rather than abandoning the batch: a
+            # results folder may hold unrelated JSON, and one bad file
+            # should not cost the figures for the good ones.
+            print(f'{path}: skipped ({exc})')
+            failed += 1
+            continue
+        print(f'\n{path}')
         panels = analyse(record)
         print_tables(record, panels)
-        out = args.output or PLOT_DIR / (path.stem + suffix)
-        plot(record, panels, out, layout)
+        plt.close(plot(record, panels, output, layout))
+    if failed:
+        raise SystemExit(f'{failed} file(s) skipped')
 
 
 if __name__ == '__main__':
