@@ -7,31 +7,43 @@ and the energy and angular momentum histories to a JSON data file.
 
 The flattened logarithmic potential
 
-    V = ln(Rc^2 + R^2 + z^2 / qf^2) / 2,    R^2 = x^2 + y^2,
+    V = ln(Rc^2 + R^2 + z^2 / qf^2) / 2
 
-is axisymmetric, so the angular momentum Lz = x py - y px is conserved.
-Every method is run in Cartesian coordinates, where the symmetry is a
-rotation mixing (x, y). The symplectic methods and EnergyVolumeSplit
-are also run in cylindrical coordinates (R, z, phi), where the symmetry
-makes phi cyclic and
+is axisymmetric. In cylindrical coordinates (R, z, phi) the azimuth phi
+is cyclic, so its conjugate momentum, the angular momentum Lz, is
+conserved, and
 
     H = (pR^2 + pz^2) / 2 + Lz^2 / (2 R^2) + V(R, z)
 
-is not separable, so the symplectic methods become implicit. All four
-conserve Lz exactly there and preserve volume; the symplectic methods
-do not conserve energy, while EnergyVolumeSplit does. Cylindrical
-coordinates are canonical, so symplecticity and volume preservation
-carry over to the Cartesian frame. Final states are converted to
-Cartesian coordinates before they are stored.
+is not separable, so the symplectic methods become implicit. Because
+the derivative of H with respect to phi vanishes identically, the
+symplectic methods, Itoh-Abe and EnergyVolumeSplit conserve Lz exactly;
+Gonzalez does not, since its correction term is parallel to the whole
+step. Only EnergyVolumeSplit conserves energy, volume and Lz together:
+Itoh-Abe conserves energy but not volume, and the symplectic methods
+preserve volume but not energy. EnergyVolumeSplit needs the symmetry
+expressed through a cyclic coordinate: in Cartesian coordinates, where
+the rotation mixes x and y, it does not conserve Lz.
+
+Final states are converted to Cartesian coordinates before they are
+stored, so the convergence errors are distances in space, about
+sqrt(dR^2 + dz^2 + (R dphi)^2). A norm on (R, z) alone would miss the
+error in phi. From this launch it would hide the first-order error of
+symplectic Euler: the launch is at the minimum of the effective
+potential, where grad_q H vanishes, so that error goes entirely into
+phi.
+
+Itoh-Abe's energy error is about 3e-13 here rather than 1e-14: at the
+inner radial turning points R changes by only a few 1e-6 per step, and
+its difference quotient in R loses digits to round-off there.
 
 The potential, energy and angular momentum are those of the orbits in
 Binney and Tremaine's Figure 3.4: their equation (3.70), which is the
 potential above with Rc = 0, with qf = 0.9, E = -0.8 and Lz = 0.2, in
 units with v0 = 1. The launch is our own. Their left-hand orbit nearly
 touches the zero-velocity curve, where the meridional speed vanishes
-and EnergyVolumeSplit in cylindrical coordinates is singular, so this
-orbit lies on a neighbouring invariant curve of their Figure 3.5
-instead.
+and EnergyVolumeSplit is singular, so this orbit lies on a neighbouring
+invariant curve of their Figure 3.5 instead.
 
 The system is non-integrable, so there is no closed-form reference; the
 convergence errors are estimated from successive step sizes.
@@ -72,119 +84,45 @@ FLATTENING = 0.9
 # LAUNCH_ANGLE degrees from the R axis; R_START is the radius of the
 # circular orbit with this Lz. The orbit is a tube around the z axis
 # whose meridional speed sqrt(pR^2 + pz^2), the rho of
-# EnergyVolumeSplit in cylindrical coordinates, stays above about 0.03
-# over the long run. The left-hand orbit of Binney and Tremaine's
-# Figure 3.4, through (R, pR) = (0.16, 0) on their surface of section,
-# drops to about 0.002 at its corners, and the second-order split fails
-# there whatever the step size. In Cartesian coordinates
-# rho = sqrt(px^2 + py^2) is at least Lz / R, so it never vanishes.
+# EnergyVolumeSplit, stays above about 0.03 over the long run. The
+# left-hand orbit of Binney and Tremaine's Figure 3.4, through
+# (R, pR) = (0.16, 0) on their surface of section, drops to about 0.002
+# at its corners, and the second-order split fails there whatever the
+# step size.
 ENERGY = -0.8
 ANGULAR_MOMENTUM = 0.2
 R_START = 0.2
 LAUNCH_ANGLE = 45.0
 
 # Convergence study, about two radial oscillations. The steps are
-# small enough for symplectic Euler in cylindrical coordinates to reach
-# its asymptotic first-order regime.
+# small enough for symplectic Euler to reach its asymptotic first-order
+# regime.
 T = 2.5
 N_LIST = [512, 1024, 2048, 4096, 8192]
 
 # Long run for the energy and angular momentum histories, sampled to
 # keep the file small. The step is about half the largest at which the
-# first-order energy-volume split in cylindrical coordinates completes
-# the run, 0.0035: its scalar equations stop being contractions once
-# h |dF/dq| / rho approaches one.
+# first-order energy-volume split completes the run, 0.0035: its scalar
+# equations stop being contractions once h |dF/dq| / rho approaches
+# one.
 ENERGY_H = 0.002
 ENERGY_STEPS = 25000
 ENERGY_SAMPLE = 50
 RELATIVE_ENERGY = True
 
-# Display name -> (method, coordinates). The class name and coordinates
-# are stored in the data file, so every variant stays distinguishable.
-# The discrete gradient methods are run in Cartesian coordinates only.
+# Display name -> method. The class name is stored in the data file, so
+# the two energy-volume split variants stay distinguishable.
 METHODS = {
-    'Symplectic Euler': (Symplectic(symmetric=False), 'cartesian'),
-    'Störmer-Verlet': (Symplectic(), 'cartesian'),
-    'Itoh-Abe': (ItohAbe(), 'cartesian'),
-    'Gonzalez': (Gonzalez(), 'cartesian'),
-    'Energy-volume split (1)': (EnergyVolumeSplit(symmetric=False),
-                                'cartesian'),
-    'Energy-volume split (2)': (EnergyVolumeSplit(), 'cartesian'),
-    'Symplectic Euler, cylindrical': (Symplectic(symmetric=False),
-                                      'cylindrical'),
-    'Störmer-Verlet, cylindrical': (Symplectic(), 'cylindrical'),
-    'Energy-volume split (1), cylindrical': (
-        EnergyVolumeSplit(symmetric=False), 'cylindrical'),
-    'Energy-volume split (2), cylindrical': (EnergyVolumeSplit(),
-                                             'cylindrical'),
+    'Symplectic Euler': Symplectic(symmetric=False),
+    'Störmer-Verlet': Symplectic(),
+    'Itoh-Abe': ItohAbe(),
+    'Gonzalez': Gonzalez(),
+    'Energy-volume split (1)': EnergyVolumeSplit(symmetric=False),
+    'Energy-volume split (2)': EnergyVolumeSplit(),
 }
 
 
-def _potential(rc, qf):
-    '''
-    Meridional potential V(R, z) and its gradient.
-
-    Parameters
-    ----------
-    rc : float
-        Core radius.
-    qf : float
-        Axis ratio of the equipotentials.
-
-    Returns
-    -------
-    V, grad_V : callable
-        Functions of (R, z); grad_V returns (dV/dR, dV/dz).
-    '''
-
-    def V(R, z):
-        return 0.5 * np.log(rc * rc + R * R + z * z / (qf * qf))
-
-    def grad_V(R, z):
-        D = rc * rc + R * R + z * z / (qf * qf)
-        return R / D, z / (qf * qf * D)
-
-    return V, grad_V
-
-
-def cartesian(rc=CORE_RADIUS, qf=FLATTENING):
-    '''
-    Build the logarithmic potential in Cartesian coordinates.
-
-    State (x, y, z, px, py, pz); the pair (px, py) is isotropic and T is
-    the default pz^2 / 2, so the system is separable. Supplies the
-    angular momentum Lz as an invariant.
-
-    Parameters
-    ----------
-    rc : float, optional
-        Core radius.
-    qf : float, optional
-        Axis ratio of the equipotentials.
-
-    Returns
-    -------
-    HamiltonianSystem
-        Separable system with n = 3.
-    '''
-    Vm, grad_Vm = _potential(rc, qf)
-
-    def V(q):
-        return Vm(np.hypot(q[0], q[1]), q[2])
-
-    def grad_V(q):
-        R = np.hypot(q[0], q[1])
-        dR, dz = grad_Vm(R, q[2])
-        return np.array([dR * q[0] / R, dR * q[1] / R, dz])
-
-    def invariants(q, p):
-        return {'angular_momentum': q[0] * p[1] - q[1] * p[0]}
-
-    return HamiltonianSystem(3, V, grad_V, invariants=invariants,
-                             name='Logarithmic, Cartesian')
-
-
-def cylindrical(rc=CORE_RADIUS, qf=FLATTENING):
+def logarithmic(rc=CORE_RADIUS, qf=FLATTENING):
     '''
     Build the logarithmic potential in cylindrical coordinates.
 
@@ -204,14 +142,15 @@ def cylindrical(rc=CORE_RADIUS, qf=FLATTENING):
     HamiltonianSystem
         Non-separable system with n = 3.
     '''
-    Vm, grad_Vm = _potential(rc, qf)
 
     def V(q):
-        return Vm(q[0], q[1])
+        R, z = q[0], q[1]
+        return 0.5 * np.log(rc * rc + R * R + z * z / (qf * qf))
 
     def grad_V(q):
-        dR, dz = grad_Vm(q[0], q[1])
-        return np.array([dR, dz, 0.0])
+        R, z = q[0], q[1]
+        D = rc * rc + R * R + z * z / (qf * qf)
+        return np.array([R / D, z / (qf * qf * D), 0.0])
 
     def T(q, p_rest):
         return 0.5 * p_rest[0] ** 2 / q[0] ** 2
@@ -224,8 +163,7 @@ def cylindrical(rc=CORE_RADIUS, qf=FLATTENING):
         return {'angular_momentum': p[2]}
 
     return HamiltonianSystem(3, V, grad_V, T, grad_T,
-                             invariants=invariants,
-                             name='Logarithmic, cylindrical')
+                             invariants=invariants, name='Logarithmic')
 
 
 def to_cartesian(z):
@@ -273,9 +211,10 @@ def launch(rc=CORE_RADIUS, qf=FLATTENING):
     ValueError
         If the launch point is outside the zero-velocity curve.
     '''
-    V = _potential(rc, qf)[0]
+    system = logarithmic(rc, qf)
     L = ANGULAR_MOMENTUM
-    r2 = 2.0 * (ENERGY - V(R_START, 0.0)) - (L / R_START) ** 2
+    q = np.array([R_START, 0.0, 0.0])
+    r2 = 2.0 * (ENERGY - system.V(q)) - (L / R_START) ** 2
     if r2 <= 0.0:
         raise ValueError('launch: point outside the zero-velocity curve')
     a = np.radians(LAUNCH_ANGLE)
@@ -371,33 +310,29 @@ def main(filename=DATA_FILE):
     dict
         The record written to the data file.
     '''
-    systems = {'cartesian': cartesian(), 'cylindrical': cylindrical()}
-    y0 = launch()
-    starts = {'cartesian': to_cartesian(y0), 'cylindrical': y0}
+    system = logarithmic()
+    z0 = launch()
 
     print('\n' + EXPERIMENT)
-    print('-' * 84)
-    print(f'{"Method":<38s} {"Class":<20s} {"Order":>5s} {"Time":>7s}')
-    print('-' * 84)
+    print('-' * 72)
+    print(f'{"Method":<26s} {"Class":<20s} {"Order":>5s} {"Time":>7s}')
+    print('-' * 72)
     methods = {}
-    for name, (method, coords) in METHODS.items():
+    for name, method in METHODS.items():
         t0 = time.perf_counter()
-        system, z0 = systems[coords], starts[coords]
-        states = [final_state(method, system, z0, T, N) for N in N_LIST]
-        if coords == 'cylindrical':
-            states = [to_cartesian(s) for s in states]
+        states = [to_cartesian(final_state(method, system, z0, T, N))
+                  for N in N_LIST]
         t, energy, momentum = histories(method, system, z0, ENERGY_H,
                                         ENERGY_STEPS, ENERGY_SAMPLE,
                                         relative=RELATIVE_ENERGY)
         methods[name] = {
             'class': type(method).__name__,
-            'coordinates': coords,
             'order': method.order,
             'final_state': [s.tolist() for s in states],
             'energy_error': energy.tolist(),
             'momentum_error': momentum.tolist(),
         }
-        print(f'{name:<38s} {type(method).__name__:<20s} {method.order:>5d} '
+        print(f'{name:<26s} {type(method).__name__:<20s} {method.order:>5d} '
               f'{time.perf_counter() - t0:6.1f}s', flush=True)
 
     record = {
@@ -411,7 +346,7 @@ def main(filename=DATA_FILE):
             'T': T, 'N_list': N_LIST,
             'energy_h': ENERGY_H, 'energy_steps': ENERGY_STEPS,
         },
-        'initial_state': starts['cartesian'].tolist(),
+        'initial_state': z0.tolist(),
         'relative_energy': RELATIVE_ENERGY,
         'momentum_symbol': 'L_z',
         'dt': [T / N for N in N_LIST],
