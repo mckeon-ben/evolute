@@ -35,7 +35,7 @@ class DiscreteGradientMethod(ImplicitMethod):
     Parameters
     ----------
     dz_min : float, optional
-        Increments below this size are treated as zero: the discrete
+        Increments at or below this size are treated as zero: the discrete
         gradient falls back to the exact gradient there, because the
         difference quotient is dominated by round-off.
     **kwargs
@@ -106,6 +106,12 @@ class ItohAbe(DiscreteGradientMethod):
         instead of the quotient. Default eps^(1/3), about 6e-6.
     **kwargs
         Passed to ImplicitMethod (xtol).
+
+    Notes
+    -----
+    - First-order accurate in h
+    - Conserves energy exactly, to solver tolerance
+    - Not volume-preserving in general
     '''
 
     name = 'Itoh-Abe'
@@ -124,7 +130,7 @@ class ItohAbe(DiscreteGradientMethod):
         Evaluate the Itoh-Abe discrete gradient.
 
         Costs d + 1 evaluations of H, plus one of grad H for each
-        coordinate below dz_min.
+        coordinate at or below dz_min.
 
         Parameters
         ----------
@@ -175,6 +181,12 @@ class Gonzalez(DiscreteGradientMethod):
         Default 1e-12.
     **kwargs
         Passed to ImplicitMethod (xtol).
+
+    Notes
+    -----
+    - Second-order accurate in h; symmetric
+    - Conserves energy exactly, to solver tolerance
+    - Not volume-preserving in general
     '''
 
     name = 'Gonzalez'

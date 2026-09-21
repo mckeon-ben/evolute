@@ -1,10 +1,50 @@
 '''
 Reads JSON data files, turning the stored final states into error
 estimates, observed orders and convergence figures, and the stored
-energy histories into energy-error plots.
+energy histories into energy-error plots. Data files that also store
+momentum histories get a momentum-error panel as well.
 
 Run with no arguments to plot every data file in the data folder, or
 name one or more files.
+
+File contract
+-------------
+Required: 'schema', 'experiment', 'dt', 'reference', 'energy_time',
+'method_order' and 'methods'. 'reference' carries 'kind' and 'state',
+the exact final state or None. 'methods' maps each display name to
+'class', 'order', 'final_state' -- one final state per entry of dt --
+and 'energy_error', sampled at the times in 'energy_time'. 'parameters'
+must carry 'T', the final time of the convergence study, and
+'energy_h', the step of the long run.
+
+Optional: 'relative_energy' (default True) chooses the energy axis
+label; a method's 'coordinates' separates its colour from another
+method of the same class; and 'momentum_error', present for every
+method, adds a momentum panel, labelled with 'momentum_symbol'
+(default 'L'). Anything else in the file is ignored.
+
+From final states to errors
+---------------------------
+With an exact reference the error is the position error at each step
+size. Otherwise, with q(dt) the positions of the final state stored
+for each method at step size dt, the successive-difference norm
+
+    delta(dt) = || q(dt) - q(dt/2) ||
+
+is the error up to a known constant. Writing e(dt) for the error,
+delta(dt) = e(dt) - e(dt/2) = e(dt) (1 - 2**-p), so
+
+    e(dt) ~ delta(dt) / (1 - 2**-p),
+
+the error at the coarser step of each pair.
+
+The observed order is taken from the ratio of consecutive errors
+against the ratio of their step sizes,
+
+    p = log(e_i / e_{i+1}) / log(dt_i / dt_{i+1}),
+
+rather than as log2 of the error ratio, so a step list that is not
+exactly halved throughout does not silently misreport the order.
 '''
 
 import argparse
@@ -165,9 +205,9 @@ def assign_styles(record):
     '''
     Line style, marker and colour for every method.
 
-    Methods of the same class share a colour, so a first-order method
-    and its symmetric composition are drawn in one colour; first-order
-    methods are dashed and second-order ones solid.
+    Methods of the same class and coordinates share a colour, so a
+    first-order method and its symmetric composition are drawn in one
+    colour; first-order methods are dashed and second-order ones solid.
 
     Parameters
     ----------
@@ -182,9 +222,10 @@ def assign_styles(record):
     colours, styles = {}, {}
     for name in record['method_order']:
         entry = record['methods'][name]
-        colours.setdefault(entry['class'], f'C{len(colours)}')
+        key = (entry['class'], entry.get('coordinates'))
+        colours.setdefault(key, f'C{len(colours)}')
         styles[name] = {
-            'color': colours[entry['class']],
+            'color': colours[key],
             'linestyle': '--' if entry['order'] == 1 else '-',
             'marker': 'o' if entry['order'] == 2 else 's',
         }
@@ -248,8 +289,8 @@ def analyse(record):
     -------
     dict
         Display name -> dict with the step sizes 'h', the position
-        errors 'err', the observed 'orders', and the sampled energy
-        error 'energy'.
+        errors 'err', the observed 'orders', the sampled energy error
+        'energy' and, if stored, the sampled momentum error 'momentum'.
     '''
     ref = record['reference']['state']
     out = {}
@@ -259,12 +300,33 @@ def analyse(record):
                                      entry['order'], ref)
         out[name] = {'h': h, 'err': err, 'orders': orders,
                      'energy': np.asarray(entry['energy_error'])}
+        if 'momentum_error' in entry:
+            out[name]['momentum'] = np.asarray(entry['momentum_error'])
     return out
+
+
+def has_momentum(panels):
+    '''
+    Whether every method in a record has a momentum history.
+
+    Parameters
+    ----------
+    panels : dict
+        Per-method results, as returned by analyse.
+
+    Returns
+    -------
+    bool
+        True if a momentum panel can be drawn.
+    '''
+    return all('momentum' in p for p in panels.values())
 
 
 def print_tables(record, panels):
     '''
-    Print the maximum energy error and the observed order of each method.
+    Print the maximum errors and the observed order of each method.
+
+    The maximum momentum error is included when every method has one.
 
     Parameters
     ----------
@@ -274,20 +336,28 @@ def print_tables(record, panels):
         Per-method results, as returned by analyse.
     '''
     kind = record['reference']['kind']
+    momentum = has_momentum(panels)
+    width = max(26, max(len(name) for name in record['method_order']))
+    rule = '-' * (width + 46 + (21 if momentum else 0))
     print(f'\n{record["experiment"]}  (reference: {kind})')
-    print('-' * 72)
-    print(f'{"Method":<26s} {"max energy error":>17s} {"order":>7s} '
-          f'{"finest error":>14s}')
-    print('-' * 72)
+    print(rule)
+    print(f'{"Method":<{width}s} {"max energy error":>17s}'
+          + (f' {"max momentum error":>20s}' if momentum else '')
+          + f' {"order":>7s} {"finest error":>14s}')
+    print(rule)
     for name in record['method_order']:
         p = panels[name]
-        print(f'{name:<26s} {p["energy"].max():>17.2e} '
-              f'{p["orders"][-1]:>7.2f} {p["err"][-1]:>14.2e}')
+        print(f'{name:<{width}s} {p["energy"].max():>17.2e}'
+              + (f' {p["momentum"].max():>20.2e}' if momentum else '')
+              + f' {p["orders"][-1]:>7.2f} {p["err"][-1]:>14.2e}')
 
 
 def plot(record, panels, filename):
     '''
     Energy error against time, and position error against step size.
+
+    When every method has a momentum history, a panel of the momentum
+    error against time is drawn between the two.
 
     Parameters
     ----------
@@ -306,17 +376,31 @@ def plot(record, panels, filename):
     styles = assign_styles(record)
     t = np.asarray(record['energy_time'])
     relative = record.get('relative_energy', True)
-    fig, (ax_e, ax_c) = plt.subplots(1, 2, figsize=(11, 4.4))
+    momentum = has_momentum(panels)
+    if momentum:
+        fig, (ax_e, ax_m, ax_c) = plt.subplots(1, 3, figsize=(16, 4.4))
+    else:
+        fig, (ax_e, ax_c) = plt.subplots(1, 2, figsize=(11, 4.4))
 
     for name in record['method_order']:
         style = dict(styles[name], marker=None, linewidth=1.0)
         ax_e.semilogy(t, np.maximum(panels[name]['energy'], FLOOR),
                       label=name, **style)
+        if momentum:
+            ax_m.semilogy(t, np.maximum(panels[name]['momentum'], FLOOR),
+                          label=name, **style)
     ax_e.set_xlabel('time $t$')
     ax_e.set_ylabel(r'$|H(z_n) - H(z_0)| / |H(z_0)|$' if relative
                     else r'$|H(z_n) - H(z_0)|$')
     ax_e.set_title(f'energy error, $h = {record["parameters"]["energy_h"]}$')
     ax_e.set_ylim(bottom=FLOOR)
+    if momentum:
+        symbol = record.get('momentum_symbol', 'L')
+        ax_m.set_xlabel('time $t$')
+        ax_m.set_ylabel(rf'$|{symbol}(z_n) - {symbol}(z_0)|$')
+        ax_m.set_title(
+            f'momentum error, $h = {record["parameters"]["energy_h"]}$')
+        ax_m.set_ylim(bottom=FLOOR)
 
     finest = {}
     for name in record['method_order']:
@@ -365,7 +449,7 @@ def main():
         If -o is given with several data files.
     '''
     parser = argparse.ArgumentParser(
-        description=__doc__.split('\n')[1])
+        description=' '.join(__doc__.split('\n\n')[0].split()))
     parser.add_argument('results', nargs='*',
                         help='data files; default is every file in '
                              f'{DATA_DIR}/')

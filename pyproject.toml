@@ -21,3 +21,6 @@ license-files = ["LICENSE"]
 
 [project.urls]
 Repository = "https://github.com/mckeon-ben/evolute"
+
+[tool.setuptools.packages.find]
+include = ["evolute*"]

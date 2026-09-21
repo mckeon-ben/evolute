@@ -16,8 +16,9 @@ import time
 import numpy as np
 from scipy.special import jv
 
-import evolute
-from evolute import (EnergyVolumeSplit, Gonzalez, ItohAbe, Symplectic)
+from evolute import (
+    EnergyVolumeSplit, Gonzalez, HamiltonianSystem, ItohAbe, Symplectic,
+)
 
 
 # Written into the data folder beside this script, wherever it is
@@ -88,8 +89,8 @@ def kepler(mu=MU):
         A = np.array([p[1] * L, -p[0] * L]) - mu * q / np.linalg.norm(q)
         return {'angular_momentum': L, 'lrl_x': A[0], 'lrl_y': A[1]}
 
-    return evolute.HamiltonianSystem(2, V, grad_V, invariants=invariants,
-                                     name='Kepler')
+    return HamiltonianSystem(2, V, grad_V, invariants=invariants,
+                             name='Kepler')
 
 
 def _elements(z0, mu):
@@ -121,12 +122,12 @@ def _elements(z0, mu):
     r, v2, rv = np.linalg.norm(q), p @ p, q @ p
     energy = 0.5 * v2 - mu / r
     if energy >= 0.0:
-        raise ValueError('kepler_exact: orbit is not bound (H >= 0)')
+        raise ValueError('orbit is not bound (H >= 0)')
     a = -mu / (2.0 * energy)
     evec = ((v2 - mu / r) * q - rv * p) / mu
     e = np.linalg.norm(evec)
     if e < 1e-12:
-        raise ValueError('kepler_exact: circular orbit not supported')
+        raise ValueError('circular orbit not supported')
     P = evec / e
     L = q[0] * p[1] - q[1] * p[0]
     Q = np.sign(L) * np.array([-P[1], P[0]])

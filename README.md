@@ -2,13 +2,14 @@
 
 **E**nergy- and **VOLU**me-preserving **T**ime integration **E**ngine.
 
-`evolute` provides one-step integrators for separable Hamiltonian
-systems. Its central method, `EnergyVolumeSplit`, conserves energy and
-preserves phase-space volume exactly, for systems with two or more
-degrees of freedom. It is not symplectic, which is what allows both
-properties at once. Symplectic and discrete gradient methods are
-included as comparison baselines, alongside scripts for three test
-problems.
+`evolute` provides one-step integrators for Hamiltonian systems. Its
+central method, `EnergyVolumeSplit`, conserves energy and preserves
+phase-space volume exactly, for systems with two or more degrees of
+freedom, and also conserves the momentum conjugate to a cyclic
+coordinate outside the isotropic pair. It is not symplectic, which is
+what allows energy and volume at once. Symplectic and discrete
+gradient methods are included as comparison baselines, alongside
+scripts for four test problems.
 
 ## Contents
 
@@ -54,7 +55,7 @@ def grad_V(q):
     return np.array([x + 2.0 * x * y, y + x * x - y * y])
 
 
-system = HamiltonianSystem(2, V, grad_V, name="Henon-Heiles")
+system = HamiltonianSystem(2, V, grad_V, name='Henon-Heiles')
 method = EnergyVolumeSplit()          # symmetric, second order
 
 z0 = np.array([0.1, -0.2, 0.3, 0.15])  # (q1, q2, p1, p2)
@@ -65,14 +66,14 @@ for _ in range(1000):
 print(system.energy_error(z0, z))
 ```
 
-The printed relative energy error is at round-off, about `1e-14`.
+The printed relative energy error is at round-off, below `1e-14`.
 
 ## Systems
 
 A `HamiltonianSystem` has the form
 
 ```text
-H(q, p) = (p1^2 + p2^2) / 2 + T(p3, ..., pn) + V(q),    n >= 2,
+H(q, p) = (p1^2 + p2^2) / 2 + T(q, p3, ..., pn) + V(q),    n >= 2,
 ```
 
 with state `z = (q, p)` and canonical equations `dz/dt = J grad H(z)`.
@@ -81,13 +82,19 @@ A system is built from:
 
 - `n`, the number of degrees of freedom;
 - `V` and `grad_V`, functions of *q*;
-- optionally `T` and `grad_T`, functions of `(p3, ..., pn)`. The
-  default is `T = |(p3, ..., pn)|^2 / 2`;
+- optionally `T` and `grad_T`, functions of *q* and
+  `p_rest = (p3, ..., pn)`; `grad_T` returns the pair
+  `(dT/dq, dT/dp_rest)`. The default is `T = |(p3, ..., pn)|^2 / 2`;
+- optionally `separable`, which records whether *T* is independent of
+  *q*. It defaults to `True` when *T* is omitted and `False` when it is
+  supplied, so pass `True` for a supplied *T* of the momenta alone;
 - optionally `invariants(q, p)`, returning a dictionary of further
   first integrals, and a display `name`.
 
-Because the potential depends only on *q* and *T* only on the remaining
-momenta, every system is separable by construction.
+Letting *T* depend on *q* admits curvilinear coordinates. In
+cylindrical coordinates `(R, z, phi)`, for example, an axisymmetric
+potential gives `T = L^2 / (2 R^2)`, with `L` the momentum conjugate
+to `phi`. Such a system is not separable.
 
 `HamiltonianSystem` also provides `H`, `grad_H`, `vector_field` and
 `energy_error(z0, z, relative=True)`. Use `relative=False` when the
@@ -116,7 +123,9 @@ a new array and leaves `z0` unchanged, and the attributes `name` and
 `EnergyVolumeSplit` and `Symplectic` take `symmetric`, which defaults
 to `True` and gives the second-order method; `False` gives the
 first-order one. Only Störmer–Verlet and symplectic Euler are
-symplectic.
+symplectic. They are explicit for a separable system; otherwise they
+take the implicit forms of Hairer, Lubich and Wanner, solved by
+fixed-point iteration, and remain symplectic.
 
 "Exact" means up to round-off, and for the implicit methods up to the
 solver tolerance `xtol`. The symplectic methods do not conserve energy,
@@ -127,9 +136,10 @@ The second-order methods `EnergyVolumeSplit()` and `Symplectic()` are
 each the symmetric composition `M*_{h/2} o M_{h/2}` of a first-order
 map *M* with its adjoint *M*\*. `Gonzalez` is already symmetric.
 
-The base classes `ExplicitMethod` and `ImplicitMethod` are exported for
-writing new methods. `ImplicitMethod` subclasses define a residual
-`F(z0, z1)` and inherit a SciPy solve.
+The base classes `PartitionedMethod` and `ImplicitMethod` are exported
+for writing new methods. `PartitionedMethod` subclasses inherit kick
+and drift substeps, explicit or implicit; `ImplicitMethod` subclasses
+define a residual `F(z0, z1)` and inherit a SciPy solve.
 
 ## How `EnergyVolumeSplit` works
 
@@ -142,6 +152,8 @@ One step is the conjugation `Phi = Psi^{-1} o M o Psi`.
    acting in one plane of the new variables with everything else
    frozen: `(q1, phi)`, `(q2, phi)`, and the remaining pairs
    `(qk, pk)` for `k >= 3`. Each substep preserves area in its plane.
+   The last substep is explicit for a separable system and is solved
+   by fixed-point iteration otherwise.
 3. `Psi^{-1}` rebuilds `(p1, p2)` on the level set `H = E`.
 
 Energy is conserved because *E* is a variable that no substep changes.
@@ -151,13 +163,26 @@ same plane, which is why the method can have both properties without
 being symplectic. The module docstring of `energy_volume_split.py`
 gives the substeps in full.
 
+If *H* does not depend on some `qk` with `k >= 3`, the last substep
+leaves `pk` unchanged and no other substep touches it, so that momentum
+is conserved exactly too. A spatial symmetry therefore carries over
+only when it is expressed through a cyclic coordinate among
+`q3, ..., qn`: for an axisymmetric potential, the azimuth of
+cylindrical coordinates. In Cartesian coordinates the splitting breaks
+the symmetry, and the angular momentum is no longer conserved.
+
 ## Things to know
 
-- Systems must be separable and have the form above, with `n >= 2`.
+- Systems must have the form above, with `n >= 2`.
 - The change of variables is singular where `p1 = p2 = 0`. A step that
   reaches it raises `ValueError`; reduce the step size.
 - The scalar equations in each substep are contractions only while
-  `h |grad V| / rho < 1`, with `rho = sqrt(p1^2 + p2^2)`.
+  `h |dF/dq| / rho < 1`, with `F = T + V` and
+  `rho = sqrt(p1^2 + p2^2)`.
+- The implicit solves need a small enough step. A solve that does not
+  converge raises `RuntimeError`: the scalar equations of
+  `EnergyVolumeSplit` always, and the fixed-point iterations of
+  `EnergyVolumeSplit` and `Symplectic` for a non-separable system.
 - The momentum pair is fixed for the whole run. Switching pairs
   adaptively to avoid the singular set would break volume
   preservation.
@@ -167,18 +192,21 @@ gives the substeps in full.
 The scripts in `examples/` integrate every method twice over and write
 the results to JSON: a convergence study to a fixed final time at a
 sequence of step counts, and a long run at a single step size recording
-the energy error.
+the energy error (and, in `logarithmic_potential.py`, the angular
+momentum error):
 
-| Script               | System                                     |
-| -------------------- | ------------------------------------------ |
-| `kepler.py`          | Planar Kepler problem                      |
-| `henon_heiles.py`    | Hénon–Heiles system                        |
-| `maxwell_fisheye.py` | Maxwell fish-eye lens in ray optics, n = 3 |
+| Script                     | System                                     |
+| -------------------------- | ------------------------------------------ |
+| `kepler.py`                | Planar Kepler problem                      |
+| `henon_heiles.py`          | Hénon–Heiles system                        |
+| `maxwell_fisheye.py`       | Maxwell fish-eye lens in ray optics, n = 3 |
+| `logarithmic_potential.py` | Axisymmetric logarithmic potential, n = 3  |
 
 `plotting.py` turns the data files into error estimates, observed
 orders and figures, each pairing the energy error against time with the
-position error against step size. The scripts can be run from any
-directory: data files always go to `examples/data/` and figures to
+position error against step size, with a momentum-error panel added
+when the data file has one. The scripts can be run from any directory:
+data files always go to `examples/data/` and figures to
 `examples/plots/`.
 
 ```bash
@@ -201,13 +229,14 @@ LICENSE
 evolute/
     __init__.py              public API
     system.py                HamiltonianSystem, canonical_J
-    integrator.py            OneStepMethod, ExplicitMethod, ImplicitMethod
+    integrator.py            OneStepMethod, PartitionedMethod,
+                             ImplicitMethod
     energy_volume_split.py   EnergyVolumeSplit
     symplectic.py            Symplectic (baseline)
     discrete_gradient.py     ItohAbe, Gonzalez (baselines)
 examples/
-    kepler.py, henon_heiles.py, maxwell_fisheye.py
-    plotting.py              tables and figures
+    <test problem>.py        four simulation scripts
+    plotting.py              error estimates and figures
 ```
 
 ## Licence

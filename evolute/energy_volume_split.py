@@ -1,13 +1,13 @@
 '''
 Energy- and volume-preserving splitting method.
 
-For separable H = (p1^2 + p2^2)/2 + T(p3, ..., pn) + V(q), n >= 2, one
+For H = (p1^2 + p2^2)/2 + F(q, p3, ..., pn), F = T + V, n >= 2, one
 step is the conjugation  Phi = Psi^{-1} o M o Psi, where:
 
 Psi : (q, p) -> (E, phi, q, p3, ..., pn),  E = H(q, p),
       phi = atan2(p2, p1).
-      Inverse: (p1, p2) = rho (cos phi, sin phi), rho = sqrt(2(E - F)),
-      F = T + V. Since rho drho = dE - dF,
+      Inverse: (p1, p2) = rho (cos phi, sin phi), rho = sqrt(2(E - F)).
+      Since rho drho = dE - dF,
       dq ^ dp = dE ^ dphi ^ dq ^ dp3 ^ ... ^ dpn, so Psi has unit
       Jacobian.
 
@@ -16,15 +16,25 @@ M   : holds E fixed and composes symplectic Euler substeps, each acting
         (q1, phi)   planar Hamiltonian K1 =  rho sin(phi) = p2,
         (q2, phi)   planar Hamiltonian K2 = -rho cos(phi) = -p1,
         (q', p')    the remaining pairs k >= 3, Hamiltonian F.
-      Each substep has unit Jacobian and leaves E unchanged.
+      Each substep has unit Jacobian and leaves E unchanged. The (q', p')
+      substep is explicit when F is separable, and otherwise solved by
+      fixed-point iteration.
 
 Hence Phi conserves H exactly (to round-off) and preserves phase-space
 volume exactly; it is not symplectic. The first-order method is M; the
 symmetric second-order method is  M*_{h/2} o M_{h/2}, with M* the
 adjoint (substeps reversed, each replaced by its adjoint Euler variant).
 
+Momentum. If F does not depend on some qk, k >= 3 (a cyclic coordinate,
+as the azimuth is for an axisymmetric potential in cylindrical
+coordinates), the (q', p') substep leaves pk unchanged, and no other
+substep touches it. The conjugate momentum is then conserved exactly
+alongside energy and volume. The symmetry must be expressed through a
+cyclic coordinate: in other coordinates the splitting generally breaks
+the corresponding conservation law.
+
 The change of variables is singular where p1 = p2 = 0, and the scalar
-equations are contractions only while h |grad V| / rho < 1.
+equations are contractions only while h |dF/dq| / rho < 1.
 
 References
 ----------
@@ -58,14 +68,28 @@ class EnergyVolumeSplit(OneStepMethod):
         True (default) for the symmetric second-order method
         M*_{h/2} o M_{h/2}; False for the first-order method M.
     xtol : float, optional
-        Tolerance for the scalar implicit equations.
+        Tolerance for the scalar implicit equations and, for a
+        non-separable system, the fixed-point iteration. Default 1e-14.
+    maxiter : int, optional
+        Iteration limit for the scalar implicit equations and the
+        fixed-point iteration. Default 100.
+
+    Notes
+    -----
+    - First- or second-order accurate in h
+    - Conserves energy exactly, to round-off
+    - Volume-preserving in phase space, but not symplectic
+    - Conserves the momentum conjugate to a cyclic coordinate among
+      q3, ..., qn
+    - Singular where p1 = p2 = 0
     '''
 
-    def __init__(self, symmetric=True, xtol=1e-14):
+    def __init__(self, symmetric=True, xtol=1e-14, maxiter=100):
         self.symmetric = symmetric
         self.order = 2 if symmetric else 1
         self.name = 'Energy-volume split'
         self.xtol = xtol
+        self.maxiter = maxiter
 
     def step(self, system, z0, h):
         '''
@@ -89,6 +113,9 @@ class EnergyVolumeSplit(OneStepMethod):
         ------
         ValueError
             If the step reaches the singular set p1 = p2 = 0.
+        RuntimeError
+            If a scalar implicit equation or the fixed-point iteration
+            does not converge.
         '''
         # Psi: to the new variables (E, phi, q, p').
         # q and pr are updated in place by the substeps.
@@ -129,18 +156,18 @@ class EnergyVolumeSplit(OneStepMethod):
         Returns
         -------
         float
-            rho = sqrt(2 (E - V(q) - T(pr))).
+            rho = sqrt(2 (E - V(q) - T(q, pr))).
 
         Raises
         ------
         ValueError
             If E - V - T <= 0, the singular set p1 = p2 = 0.
         '''
-        r2 = 2.0 * (E - system.V(q) - system.T(pr))
+        r2 = 2.0 * (E - system.V(q) - system.T(q, pr))
         if r2 <= 0.0:
             raise ValueError(
-                'EnergyVolumeSplit: p1^2 + p2^2 <= 0 in the new '
-                'variables (singular set p1 = p2 = 0); reduce the step size'
+                'Energy-volume split reached the singular set '
+                'p1 = p2 = 0; reduce the step size'
             )
         return np.sqrt(r2)
 
@@ -159,8 +186,42 @@ class EnergyVolumeSplit(OneStepMethod):
         -------
         float
             Root, to tolerance xtol.
+
+        Raises
+        ------
+        RuntimeError
+            If the secant method does not converge within maxiter steps.
         '''
-        return newton(fun, x0, tol=self.xtol, maxiter=100)
+        try:
+            return newton(fun, x0, tol=self.xtol, maxiter=self.maxiter)
+        except RuntimeError as e:
+            raise RuntimeError(
+                f'{self.name} solver failed to converge: {e}'
+            ) from e
+
+    @staticmethod
+    def _grad_F(system, q, pr):
+        '''
+        Evaluate the gradient of F = T + V.
+
+        Parameters
+        ----------
+        system : HamiltonianSystem
+            System supplying grad V and grad T.
+        q : np.ndarray
+            Positions, shape (n,).
+        pr : np.ndarray
+            Momenta (p3, ..., pn), shape (n - 2,).
+
+        Returns
+        -------
+        dF_dq : np.ndarray
+            Gradient with respect to q, shape (n,).
+        dF_dp : np.ndarray
+            Gradient with respect to (p3, ..., pn), shape (n - 2,).
+        '''
+        dT_dq, dT_dp = system.grad_T(q, pr)
+        return system.grad_V(q) + dT_dq, dT_dp
 
     # --- M: symplectic Euler, implicit in phi (resp. p') -----------------
 
@@ -192,25 +253,35 @@ class EnergyVolumeSplit(OneStepMethod):
             Updated angle phi.
         '''
         # (q1, phi), K1 = rho(q1) sin(phi):
-        #   phi* = phi + h V_q1 sin(phi*) / rho,  q1* = q1 + h rho cos(phi*)
+        #   phi* = phi + h F_q1 sin(phi*) / rho,  q1* = q1 + h rho cos(phi*)
         rho = self._rho(system, E, q, pr)
-        c = h * system.grad_V(q)[0] / rho
+        c = h * self._grad_F(system, q, pr)[0][0] / rho
         phi0 = phi
         phi = self._solve(lambda f: f - phi0 - c * np.sin(f), phi0)
         q[0] += h * rho * np.cos(phi)
 
         # (q2, phi), K2 = -rho(q2) cos(phi):
-        #   phi* = phi - h V_q2 cos(phi*) / rho,  q2* = q2 + h rho sin(phi*)
+        #   phi* = phi - h F_q2 cos(phi*) / rho,  q2* = q2 + h rho sin(phi*)
         rho = self._rho(system, E, q, pr)
-        c = h * system.grad_V(q)[1] / rho
+        c = h * self._grad_F(system, q, pr)[0][1] / rho
         phi0 = phi
         phi = self._solve(lambda f: f - phi0 + c * np.cos(f), phi0)
         q[1] += h * rho * np.sin(phi)
 
-        # (q', p'), k >= 3: kick then drift (separable, so explicit)
+        # (q', p'), k >= 3, Hamiltonian F:
+        #   p'* = p' - h F_q'(q, p'*),  q'* = q' + h F_p'(q, p'*)
+        # A kick then a drift when F is separable.
         if system.n > 2:
-            pr -= h * system.grad_V(q)[2:]
-            q[2:] += h * system.grad_T(pr)
+            p0 = pr.copy()
+
+            def kick(x):
+                return p0 - h * self._grad_F(system, q, x)[0][2:]
+
+            if system.separable:
+                pr[:] = kick(p0)
+            else:
+                pr[:] = self._fixed_point(kick, p0)
+            q[2:] += h * self._grad_F(system, q, pr)[1]
         return phi
 
     # --- M*: adjoint, substeps reversed, implicit in q_k -----------------
@@ -241,24 +312,36 @@ class EnergyVolumeSplit(OneStepMethod):
         float
             Updated angle phi.
         '''
-        # (q', p'), k >= 3: drift then kick
+        # (q', p'), k >= 3, Hamiltonian F:
+        #   q'* = q' + h F_p'(q*, p'),  p'* = p' - h F_q'(q*, p')
+        # A drift then a kick when F is separable.
         if system.n > 2:
-            q[2:] += h * system.grad_T(pr)
-            pr -= h * system.grad_V(q)[2:]
+            q0 = q[2:].copy()
+            trial = q.copy()
+
+            def drift(x):
+                trial[2:] = x
+                return q0 + h * self._grad_F(system, trial, pr)[1]
+
+            if system.separable:
+                q[2:] = drift(q0)
+            else:
+                q[2:] = self._fixed_point(drift, q0)
+            pr -= h * self._grad_F(system, q, pr)[0][2:]
 
         # (q2, phi):  q2* = q2 + h rho(q2*) sin(phi),
-        #             phi* = phi - h V_q2(q2*) cos(phi) / rho(q2*)
+        #             phi* = phi - h F_q2(q2*) cos(phi) / rho(q2*)
         s = np.sin(phi)
         q[1] = self._solve_position(system, E, q, pr, 1, h * s)
         rho = self._rho(system, E, q, pr)
-        phi = phi - h * system.grad_V(q)[1] * np.cos(phi) / rho
+        phi = phi - h * self._grad_F(system, q, pr)[0][1] * np.cos(phi) / rho
 
         # (q1, phi):  q1* = q1 + h rho(q1*) cos(phi),
-        #             phi* = phi + h V_q1(q1*) sin(phi) / rho(q1*)
+        #             phi* = phi + h F_q1(q1*) sin(phi) / rho(q1*)
         c = np.cos(phi)
         q[0] = self._solve_position(system, E, q, pr, 0, h * c)
         rho = self._rho(system, E, q, pr)
-        phi = phi + h * system.grad_V(q)[0] * np.sin(phi) / rho
+        phi = phi + h * self._grad_F(system, q, pr)[0][0] * np.sin(phi) / rho
         return phi
 
     def _solve_position(self, system, E, q, pr, i, a):

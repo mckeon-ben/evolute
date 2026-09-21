@@ -29,8 +29,9 @@ import time
 import numpy as np
 from scipy.optimize import brentq
 
-import evolute
-from evolute import (EnergyVolumeSplit, Gonzalez, ItohAbe, Symplectic)
+from evolute import (
+    EnergyVolumeSplit, Gonzalez, HamiltonianSystem, ItohAbe, Symplectic,
+)
 
 
 # Written into the data folder beside this script, wherever it is
@@ -110,8 +111,8 @@ def maxwell_fisheye(n0=N0, R=RADIUS):
         # -n grad n, with grad n = -2 n0 q / (R^2 (1 + |q|^2/R^2)^2)
         return 2.0 * n0 ** 2 * q / (R ** 2 * (1.0 + q @ q / R ** 2) ** 3)
 
-    system = evolute.HamiltonianSystem(3, V, grad_V,
-                                       name='Maxwell fish-eye')
+    system = HamiltonianSystem(3, V, grad_V,
+                               name='Maxwell fish-eye')
     system.index = index
     return system
 

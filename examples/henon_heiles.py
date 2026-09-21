@@ -15,8 +15,9 @@ import time
 
 import numpy as np
 
-import evolute
-from evolute import (EnergyVolumeSplit, Gonzalez, ItohAbe, Symplectic)
+from evolute import (
+    EnergyVolumeSplit, Gonzalez, HamiltonianSystem, ItohAbe, Symplectic,
+)
 
 
 # Written into the data folder beside this script, wherever it is
@@ -83,7 +84,7 @@ def henon_heiles(lam=LAMBDA):
         return np.array([x + 2.0 * lam * x * y,
                          y + lam * (x * x - y * y)])
 
-    return evolute.HamiltonianSystem(2, V, grad_V, name='Henon-Heiles')
+    return HamiltonianSystem(2, V, grad_V, name='Henon-Heiles')
 
 
 def final_state(method, system, z0, T, N):
