@@ -4,9 +4,6 @@ Kepler problem.
 Integrates every method over a fixed time at a sequence of step counts,
 and over a long run at a single step size, then writes the final states
 and the energy history to a JSON data file.
-
-The reference solution is exact: Kepler's equation is solved by the
-Lagrange-Bessel series.
 '''
 
 import json
@@ -34,19 +31,14 @@ EXPERIMENT = 'Kepler problem'
 MU = 1.0
 Z_START = np.array([1.0, 0.1, 0.2, 0.9])
 
-# Convergence study over 5.5 orbital periods. The fraction is
-# deliberate: the O(h) error term of some first-order methods vanishes
-# whenever the orbit returns to its start, so a whole number of periods
-# would make them look second order.
-PERIODS = 5.5
-N_LIST = [256, 512, 1024, 2048, 4096]
+# Convergence study.
+T = 16.0
+N_LIST = [2048, 4096, 8192, 16384, 32768, 65536]
 
-# Long run for the energy history, about 39 orbits, sampled to keep the
-# file small.
+# Long run for the energy history, sampled to keep the file small.
 ENERGY_H = 0.05
-ENERGY_STEPS = 4000
-ENERGY_SAMPLE = 10
-RELATIVE_ENERGY = True
+ENERGY_STEPS = 8192
+ENERGY_SAMPLE = 16
 
 # Display name -> method. The class name is stored in the data file, so
 # the two energy-volume split variants stay distinguishable.
@@ -135,26 +127,6 @@ def _elements(z0, mu):
     return a, e, P, Q, E0
 
 
-def kepler_period(z0, mu=MU):
-    '''
-    Orbital period 2 pi sqrt(a^3 / mu).
-
-    Parameters
-    ----------
-    z0 : np.ndarray
-        Initial state, shape (4,).
-    mu : float, optional
-        Gravitational parameter.
-
-    Returns
-    -------
-    float
-        Orbital period.
-    '''
-    a = _elements(z0, mu)[0]
-    return 2.0 * np.pi * np.sqrt(a ** 3 / mu)
-
-
 def kepler_exact(z0, t, mu=MU, terms=40):
     '''
     Exact state at time t on the elliptic orbit through z0.
@@ -223,7 +195,7 @@ def final_state(method, system, z0, T, N):
     return z
 
 
-def energy_history(method, system, z0, h, steps, sample, relative=True):
+def energy_history(method, system, z0, h, steps, sample):
     '''
     Energy error of one method along a long run, sampled.
 
@@ -241,8 +213,6 @@ def energy_history(method, system, z0, h, steps, sample, relative=True):
         Number of steps.
     sample : int
         Keep every `sample`-th step.
-    relative : bool, optional
-        Divide by |H(z0)|.
 
     Returns
     -------
@@ -257,7 +227,7 @@ def energy_history(method, system, z0, h, steps, sample, relative=True):
         z = method.step(system, z, h)
         if k % sample == 0:
             t.append(k * h)
-            err.append(system.energy_error(z0, z, relative=relative))
+            err.append(system.energy_error(z0, z))
     return np.array(t), np.array(err)
 
 
@@ -278,7 +248,6 @@ def main(filename=DATA_FILE):
     '''
     system = kepler()
     z0 = Z_START.copy()
-    T = PERIODS * kepler_period(z0)
 
     print('\n' + EXPERIMENT)
     print('-' * 72)
@@ -289,8 +258,7 @@ def main(filename=DATA_FILE):
         t0 = time.perf_counter()
         states = [final_state(method, system, z0, T, N) for N in N_LIST]
         t, err = energy_history(method, system, z0, ENERGY_H,
-                                ENERGY_STEPS, ENERGY_SAMPLE,
-                                relative=RELATIVE_ENERGY)
+                                ENERGY_STEPS, ENERGY_SAMPLE)
         methods[name] = {
             'class': type(method).__name__,
             'order': method.order,
@@ -305,11 +273,10 @@ def main(filename=DATA_FILE):
         'generated': time.strftime('%Y-%m-%dT%H:%M:%S'),
         'experiment': EXPERIMENT,
         'parameters': {
-            'mu': MU, 'T': T, 'periods': PERIODS, 'N_list': N_LIST,
+            'mu': MU, 'T': T, 'N_list': N_LIST,
             'energy_h': ENERGY_H, 'energy_steps': ENERGY_STEPS,
         },
         'initial_state': z0.tolist(),
-        'relative_energy': RELATIVE_ENERGY,
         'dt': [T / N for N in N_LIST],
         'reference': {'kind': 'exact',
                       'state': kepler_exact(z0, T).tolist()},

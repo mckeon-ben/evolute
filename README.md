@@ -9,7 +9,7 @@ freedom, and also conserves the momentum conjugate to a cyclic
 coordinate outside the isotropic pair. It is not symplectic, which is
 what allows energy and volume preservation at once. Symplectic
 and discrete gradient methods are included as comparison baselines,
-alongside scripts for four test problems.
+alongside scripts for three test problems.
 
 ## Contents
 
@@ -97,9 +97,8 @@ potential gives `T = L^2 / (2 R^2)`, with `L` the momentum conjugate
 to `phi`. Such a system is not separable.
 
 `HamiltonianSystem` also provides `H`, `grad_H`, `vector_field` and
-`energy_error(z0, z, relative=True)`. Use `relative=False` when the
-initial energy is zero in exact arithmetic, as for rays on `H = 0`: in
-floating point it is then round-off.
+`energy_error(z0, z)`, the relative energy error
+`|H(z) - H(z0)| / |H(z0)|`.
 
 System-specific definitions live in user scripts rather than in the
 package; see [Examples](#examples).
@@ -199,7 +198,6 @@ momentum error):
 | -------------------------- | ------------------------------------------ |
 | `kepler.py`                | Planar Kepler problem                      |
 | `henon_heiles.py`          | Hénon–Heiles system                        |
-| `maxwell_fisheye.py`       | Maxwell fish-eye lens in ray optics, n = 3 |
 | `logarithmic_potential.py` | Axisymmetric logarithmic potential, n = 3  |
 
 `plotting.py` turns the data files into error estimates, observed
@@ -220,6 +218,10 @@ installation with the `helvet` and `sansmath` packages. Set
 `USETEX = False` at the top of the script to use matplotlib's own
 renderer instead.
 
+Add `--print` to draw a figure at its final size for the *SIAM Journal
+on Numerical Analysis*, as PDF; the `PRINT_*` settings at the top of the
+script hold that journal's width, lettering and line sizes.
+
 ## Package layout
 
 ```text
@@ -235,7 +237,7 @@ evolute/
     symplectic.py            Symplectic (baseline)
     discrete_gradient.py     ItohAbe, Gonzalez (baselines)
 examples/
-    <test problem>.py        four simulation scripts
+    <test problem>.py        three simulation scripts
     plotting.py              error estimates and figures
 ```
 

@@ -334,13 +334,11 @@ class HamiltonianSystem:
 
     # --- diagnostics -----------------------------------------------------
 
-    def energy_error(self, z0, z, relative=True):
+    def energy_error(self, z0, z):
         '''
-        Measure the energy error of z against the initial state z0.
+        Measure the relative energy error of z against the initial state z0.
 
-        Use relative=False when H(z0) is zero in exact arithmetic (for
-        example rays on H = 0): in floating point H(z0) is then
-        round-off, and dividing by it is meaningless.
+        H(z0) must be nonzero.
 
         Parameters
         ----------
@@ -348,17 +346,14 @@ class HamiltonianSystem:
             Initial state, shape (2n,).
         z : np.ndarray
             Current state, shape (2n,).
-        relative : bool, optional
-            Divide by |H(z0)| if True (default).
 
         Returns
         -------
         float
-            |H(z) - H(z0)|, relative or absolute.
+            |H(z) - H(z0)| / |H(z0)|.
         '''
         H0 = self.H(z0)
-        err = abs(self.H(z) - H0)
-        return err / abs(H0) if relative else err
+        return abs(self.H(z) - H0) / abs(H0)
 
     def invariants(self, z):
         '''

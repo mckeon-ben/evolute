@@ -17,11 +17,9 @@ and 'energy_error', sampled at the times in 'energy_time'. 'parameters'
 must carry 'T', the final time of the convergence study, and
 'energy_h', the step of the long run.
 
-Optional: 'relative_energy' (default True) chooses the energy axis
-label; a method's 'coordinates' separates its colour from another
-method of the same class; and 'momentum_error', present for every
-method, adds a momentum panel, labelled with 'momentum_symbol'
-(default 'L'). Anything else in the file is ignored.
+Optional: 'momentum_error', present for every method, adds a momentum
+panel, labelled with 'momentum_symbol' (default 'L'). Anything else in
+the file is ignored.
 
 From final states to errors
 ---------------------------
@@ -70,6 +68,28 @@ PLOT_DIR = Path(__file__).resolve().parent / 'plots'
 # and at whatever size a paper puts it.
 FIGURE_SUFFIX = '.pdf'
 
+# Print layout for the SIAM Journal on Numerical Analysis, used with
+# --print. The figure is drawn at the text width of the SIAM class,
+# 5.125 in, so no text or line is scaled down: lines of at least 1 pt,
+# all text in black, and vector PDF. SIAM prints in black and white, so
+# methods are told apart by marker and dash as well as colour. The text
+# is in Computer Modern, the typeface of the SIAM class, rather than the
+# Helvetica of the screen figures.
+PRINT_WIDTH = 5.125
+PRINT_FONT_SIZE = 8
+PRINT_LINE_WIDTH = 1.0
+PRINT_SUFFIX = '.pdf'
+
+# LaTeX's own default is Computer Modern, so the print preamble needs no
+# font packages.
+PRINT_LATEX_PREAMBLE = ''
+
+# Fallback for when LaTeX is off, from fonts matplotlib ships: Computer
+# Modern as cmr10, with tick labels set as maths to keep their minus
+# signs, and DejaVu Serif for any glyph cmr10 lacks, such as the umlaut
+# in Stormer.
+PRINT_FONT_STACK = ['cmr10', 'DejaVu Serif']
+
 # Smallest value shown on the energy axis. Steps where the energy error
 # is exactly zero in floating point are drawn at this floor.
 FLOOR = 1e-17
@@ -94,9 +114,31 @@ plt.rcParams.update({
     'font.sans-serif': FONT_STACK,
     'mathtext.fontset': 'dejavusans',
     'axes.grid': True,
-    'grid.alpha': 0.3,
+    # Opaque rather than translucent, which EPS cannot store.
+    'grid.color': '0.9',
     'figure.dpi': 150,
+    'lines.linewidth': 1.0,
+    'lines.markersize': 3.0,
+    'legend.fontsize': 9,
+    # Embed TrueType rather than the Type 3 fonts matplotlib writes by
+    # default.
+    'pdf.fonttype': 42,
+    'ps.fonttype': 42,
 })
+
+# Marker by method class, so the classes stay distinguishable in black
+# and white. Classes not listed fall back to the markers below.
+MARKERS = {
+    'Symplectic': 'o',
+    'ItohAbe': 's',
+    'Gonzalez': '^',
+    'EnergyVolumeSplit': 'D',
+}
+
+FALLBACK_MARKERS = ['v', 'P', 'X', '*', '<', '>']
+
+# Number of markers along each time history.
+HISTORY_MARKERS = 8
 
 
 def use_latex(enabled=USETEX):
@@ -115,6 +157,38 @@ def use_latex(enabled=USETEX):
     plt.rcParams.update({
         'text.usetex': enabled,
         'text.latex.preamble': LATEX_PREAMBLE if enabled else '',
+    })
+
+
+def use_print_layout():
+    '''
+    Switch to the journal's print sizes for text and lines.
+
+    All text is set in Computer Modern at PRINT_FONT_SIZE and every line,
+    including the axes, ticks and grid, at PRINT_LINE_WIDTH. Call after
+    use_latex, whose preamble this replaces.
+    '''
+    size, width = PRINT_FONT_SIZE, PRINT_LINE_WIDTH
+    if plt.rcParams['text.usetex']:
+        plt.rcParams['text.latex.preamble'] = PRINT_LATEX_PREAMBLE
+    plt.rcParams.update({
+        'font.family': PRINT_FONT_STACK,
+        'mathtext.fontset': 'cm',
+        'axes.formatter.use_mathtext': True,
+        'font.size': size,
+        'axes.titlesize': size,
+        'axes.labelsize': size,
+        'xtick.labelsize': size,
+        'ytick.labelsize': size,
+        'legend.fontsize': size,
+        'lines.linewidth': width,
+        'axes.linewidth': width,
+        'grid.linewidth': width,
+        'xtick.major.width': width,
+        'ytick.major.width': width,
+        'xtick.minor.width': width,
+        'ytick.minor.width': width,
+        'lines.markersize': 3.5,
     })
 
 
@@ -205,9 +279,10 @@ def assign_styles(record):
     '''
     Line style, marker and colour for every method.
 
-    Methods of the same class and coordinates share a colour, so a
-    first-order method and its symmetric composition are drawn in one
-    colour; first-order methods are dashed and second-order ones solid.
+    Methods of the same class share a colour and a marker, so a
+    first-order method and its symmetric composition are drawn alike
+    except that first-order methods are dashed and second-order ones
+    solid. The marker keeps the classes apart in black and white.
 
     Parameters
     ----------
@@ -219,15 +294,17 @@ def assign_styles(record):
     dict
         Display name -> dict of matplotlib line properties.
     '''
-    colours, styles = {}, {}
+    colours, markers, styles = {}, {}, {}
     for name in record['method_order']:
-        entry = record['methods'][name]
-        key = (entry['class'], entry.get('coordinates'))
-        colours.setdefault(key, f'C{len(colours)}')
+        cls = record['methods'][name]['class']
+        colours.setdefault(cls, f'C{len(colours)}')
+        markers.setdefault(cls, MARKERS.get(
+            cls, FALLBACK_MARKERS[len(markers) % len(FALLBACK_MARKERS)]))
         styles[name] = {
-            'color': colours[key],
-            'linestyle': '--' if entry['order'] == 1 else '-',
-            'marker': 'o' if entry['order'] == 2 else 's',
+            'color': colours[cls],
+            'linestyle': '--' if record['methods'][name]['order'] == 1
+            else '-',
+            'marker': markers[cls],
         }
     return styles
 
@@ -352,7 +429,7 @@ def print_tables(record, panels):
               + f' {p["orders"][-1]:>7.2f} {p["err"][-1]:>14.2e}')
 
 
-def plot(record, panels, filename):
+def plot(record, panels, filename, layout='screen'):
     '''
     Energy error against time, and position error against step size.
 
@@ -367,6 +444,11 @@ def plot(record, panels, filename):
         Per-method results, as returned by analyse.
     filename : str or Path
         Output figure path.
+    layout : {'screen', 'print'}, optional
+        'screen' (default) puts the panels side by side under a title;
+        'print' stacks them at the journal width, labelled (a), (b), ...,
+        with the legend below and no title, since the caption belongs to
+        the paper.
 
     Returns
     -------
@@ -375,23 +457,29 @@ def plot(record, panels, filename):
     '''
     styles = assign_styles(record)
     t = np.asarray(record['energy_time'])
-    relative = record.get('relative_energy', True)
     momentum = has_momentum(panels)
-    if momentum:
-        fig, (ax_e, ax_m, ax_c) = plt.subplots(1, 3, figsize=(16, 4.4))
+    n_panels = 3 if momentum else 2
+    if layout == 'print':
+        fig, axes = plt.subplots(n_panels, 1,
+                                 figsize=(PRINT_WIDTH, 2.1 * n_panels + 0.6))
     else:
-        fig, (ax_e, ax_c) = plt.subplots(1, 2, figsize=(11, 4.4))
+        fig, axes = plt.subplots(1, n_panels,
+                                 figsize=(16 if momentum else 11, 4.4))
+    ax_e, ax_c = axes[0], axes[-1]
+    ax_m = axes[1] if momentum else None
 
-    for name in record['method_order']:
-        style = dict(styles[name], marker=None, linewidth=1.0)
+    every = max(1, len(t) // HISTORY_MARKERS)
+    for i, name in enumerate(record['method_order']):
+        # Stagger the markers so methods that overlap stay legible.
+        start = (i * every) // len(record['method_order'])
+        style = dict(styles[name], markevery=(start, every))
         ax_e.semilogy(t, np.maximum(panels[name]['energy'], FLOOR),
                       label=name, **style)
         if momentum:
             ax_m.semilogy(t, np.maximum(panels[name]['momentum'], FLOOR),
                           label=name, **style)
     ax_e.set_xlabel('time $t$')
-    ax_e.set_ylabel(r'$|H(z_n) - H(z_0)| / |H(z_0)|$' if relative
-                    else r'$|H(z_n) - H(z_0)|$')
+    ax_e.set_ylabel(r'$|H(z_n) - H(z_0)| / |H(z_0)|$')
     ax_e.set_title(f'energy error, $h = {record["parameters"]["energy_h"]}$')
     ax_e.set_ylim(bottom=FLOOR)
     if momentum:
@@ -405,8 +493,7 @@ def plot(record, panels, filename):
     finest = {}
     for name in record['method_order']:
         p = panels[name]
-        ax_c.loglog(p['h'], p['err'], label=name, markersize=3,
-                    linewidth=1.0, **styles[name])
+        ax_c.loglog(p['h'], p['err'], label=name, **styles[name])
         order = record['methods'][name]['order']
         finest.setdefault(order, []).append(p['err'][-1])
 
@@ -417,24 +504,36 @@ def plot(record, panels, filename):
         above = order == lowest
         e0 = 2.0 * max(errs) if above else 0.5 * min(errs)
         ax_c.loglog(fine, e0 * (fine / fine[-1]) ** order, color='0.5',
-                    linestyle=':', linewidth=1.0)
+                    linestyle=':')
         h_mid = np.sqrt(fine[0] * fine[-1])
         ax_c.annotate(rf'$\mathcal{{O}}(h^{order})$' if order > 1
                       else r'$\mathcal{O}(h)$',
                       xy=(h_mid, e0 * (h_mid / fine[-1]) ** order),
                       xytext=(0, 5 if above else -5),
                       textcoords='offset points', ha='center',
-                      va='bottom' if above else 'top', color='0.4',
-                      fontsize=9)
+                      va='bottom' if above else 'top', color='k')
+    ax_c.set_xscale('log', base=2)
     ax_c.set_xlabel('step size $h$')
     ax_c.set_ylabel(r'$\|q_N - q(T)\|_2$' if record['reference']['state']
                     else r'estimated $\|q_N - q(T)\|_2$')
     ax_c.set_title(f'position error at $T = {record["parameters"]["T"]:.4g}$')
-    ax_c.legend(loc='center left', bbox_to_anchor=(1.02, 0.5), fontsize=9)
 
-    fig.suptitle(record['experiment'])
-    fig.tight_layout()
-    fig.savefig(filename, bbox_inches='tight')
+    if layout == 'print':
+        # One legend under the stacked panels, where it covers no data.
+        for i, ax in enumerate(axes):
+            ax.set_title(f'({chr(ord("a") + i)}) {ax.get_title()}')
+        handles, labels = ax_c.get_legend_handles_labels()
+        legend_height = 0.6
+        fig.tight_layout(rect=(0, legend_height / fig.get_figheight(), 1, 1))
+        fig.legend(handles, labels, loc='lower center', ncol=2,
+                   frameon=False)
+    else:
+        ax_c.legend(loc='center left', bbox_to_anchor=(1.02, 0.5))
+        fig.suptitle(record['experiment'])
+        fig.tight_layout()
+    # Print figures keep their exact width; screen ones are cropped.
+    fig.savefig(filename,
+                bbox_inches=None if layout == 'print' else 'tight')
     print(f'Saved {filename}')
     return fig
 
@@ -453,7 +552,12 @@ def main():
     parser.add_argument('results', nargs='*',
                         help='data files; default is every file in '
                              f'{DATA_DIR}/')
-    parser.add_argument('-o', '--output', help='output figure path')
+    parser.add_argument('-o', '--output',
+                        help=f'output figure (default: {PLOT_DIR}/<name>'
+                             f'{FIGURE_SUFFIX}, or {PRINT_SUFFIX} with '
+                             f'--print)')
+    parser.add_argument('--print', action='store_true', dest='print_layout',
+                        help='draw at the print size of the journal')
     args = parser.parse_args()
 
     files = [resolve(name) for name in args.results] if args.results \
@@ -462,13 +566,17 @@ def main():
         raise SystemExit('-o takes a single data file')
 
     use_latex()
+    layout, suffix = 'screen', FIGURE_SUFFIX
+    if args.print_layout:
+        use_print_layout()
+        layout, suffix = 'print', PRINT_SUFFIX
     PLOT_DIR.mkdir(exist_ok=True)
     for path in files:
         record = load(path)
         panels = analyse(record)
         print_tables(record, panels)
-        out = args.output or PLOT_DIR / (path.stem + FIGURE_SUFFIX)
-        plot(record, panels, out)
+        out = args.output or PLOT_DIR / (path.stem + suffix)
+        plot(record, panels, out, layout)
 
 
 if __name__ == '__main__':

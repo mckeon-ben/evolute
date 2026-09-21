@@ -4,9 +4,6 @@ Henon-Heiles system.
 Integrates every method over a fixed time at a sequence of step counts,
 and over a long run at a single step size, then writes the final states
 and the energy history to a JSON data file.
-
-The system is non-integrable, so there is no closed-form reference; the
-convergence errors are estimated from successive step sizes.
 '''
 
 import json
@@ -29,21 +26,18 @@ DATA_FILE = os.path.join(DATA_DIR, 'henon_heiles.json')
 # Names the figure.
 EXPERIMENT = 'Henon-Heiles system'
 
-# Cubic coupling and initial state (q1, q2, p1, p2). The energy is well
-# below the escape energy 1/6, so the orbit stays bounded.
+# Cubic coupling and initial state (q1, q2, p1, p2).
 LAMBDA = 1.0
 Z_START = np.array([0.1, -0.2, 0.3, 0.15])
 
 # Convergence study.
-T = 10.0
-N_LIST = [128, 256, 512, 1024, 2048]
+T = 16.0
+N_LIST = [512, 1024, 2048, 4096, 8192, 16384]
 
-# Long run for the energy history, about 64 oscillations of the
-# quadratic part, sampled to keep the file small.
+# Long run for the energy history, sampled to keep the file small.
 ENERGY_H = 0.05
-ENERGY_STEPS = 8000
-ENERGY_SAMPLE = 20
-RELATIVE_ENERGY = True
+ENERGY_STEPS = 8192
+ENERGY_SAMPLE = 32
 
 # Display name -> method. The class name is stored in the data file, so
 # the two energy-volume split variants stay distinguishable.
@@ -115,7 +109,7 @@ def final_state(method, system, z0, T, N):
     return z
 
 
-def energy_history(method, system, z0, h, steps, sample, relative=True):
+def energy_history(method, system, z0, h, steps, sample):
     '''
     Energy error of one method along a long run, sampled.
 
@@ -133,8 +127,6 @@ def energy_history(method, system, z0, h, steps, sample, relative=True):
         Number of steps.
     sample : int
         Keep every `sample`-th step.
-    relative : bool, optional
-        Divide by |H(z0)|.
 
     Returns
     -------
@@ -149,7 +141,7 @@ def energy_history(method, system, z0, h, steps, sample, relative=True):
         z = method.step(system, z, h)
         if k % sample == 0:
             t.append(k * h)
-            err.append(system.energy_error(z0, z, relative=relative))
+            err.append(system.energy_error(z0, z))
     return np.array(t), np.array(err)
 
 
@@ -180,8 +172,7 @@ def main(filename=DATA_FILE):
         t0 = time.perf_counter()
         states = [final_state(method, system, z0, T, N) for N in N_LIST]
         t, err = energy_history(method, system, z0, ENERGY_H,
-                                ENERGY_STEPS, ENERGY_SAMPLE,
-                                relative=RELATIVE_ENERGY)
+                                ENERGY_STEPS, ENERGY_SAMPLE)
         methods[name] = {
             'class': type(method).__name__,
             'order': method.order,
@@ -200,7 +191,6 @@ def main(filename=DATA_FILE):
             'energy_h': ENERGY_H, 'energy_steps': ENERGY_STEPS,
         },
         'initial_state': z0.tolist(),
-        'relative_energy': RELATIVE_ENERGY,
         'dt': [T / N for N in N_LIST],
         'reference': {'kind': 'successive', 'state': None},
         'energy_time': t.tolist(),
