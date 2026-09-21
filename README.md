@@ -7,9 +7,9 @@ central method, `EnergyVolumeSplit`, conserves energy and preserves
 phase-space volume exactly, for systems with two or more degrees of
 freedom, and also conserves the momentum conjugate to a cyclic
 coordinate outside the isotropic pair. It is not symplectic, which is
-what allows energy and volume at once. Symplectic and discrete
-gradient methods are included as comparison baselines, alongside
-scripts for four test problems.
+what allows energy and volume preservation at once. Symplectic
+and discrete gradient methods are included as comparison baselines,
+alongside scripts for four test problems.
 
 ## Contents
 
