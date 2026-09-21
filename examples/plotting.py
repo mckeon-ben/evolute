@@ -104,6 +104,8 @@ LATEX_PREAMBLE = r'''
 \renewcommand{\familydefault}{\sfdefault}
 \usepackage{sansmath}
 \sansmath
+\DeclareSymbolFont{sansletters}{OT1}{phv}{m}{n}
+\DeclareMathSymbol{-}{\mathbin}{sansletters}{"2D}
 '''
 
 FONT_STACK = ['Helvetica', 'Arial', 'TeX Gyre Heros', 'Nimbus Sans',
@@ -147,7 +149,9 @@ PALETTE = [
 
 FALLBACK_MARKERS = ['v', 'P', 'X', '*', '<', '>']
 
-# Number of markers along each time history.
+# Number of equal intervals the markers divide each time history into.
+# Every history is marked at its first and last samples, and once in
+# each interval between.
 HISTORY_MARKERS = 8
 
 
@@ -564,26 +568,35 @@ def plot(record, panels, filename, layout='screen'):
     ax_e, ax_c = axes[0], axes[-1]
     ax_m = axes[1] if momentum else None
 
-    every = max(1, len(t) // HISTORY_MARKERS)
+    n, m = len(t), len(record['method_order'])
+    spacing = (n - 1) / HISTORY_MARKERS
     for i, name in enumerate(record['method_order']):
-        # Stagger the markers so methods that overlap stay legible.
-        start = (i * every) // len(record['method_order'])
-        style = dict(styles[name], markevery=(start, every))
+        # Every trace is marked at both ends of the run. The markers in
+        # between are staggered about their nominal positions, so methods
+        # that overlap stay legible.
+        shift = (i - (m - 1) / 2) * spacing / m
+        inner = [round(k * spacing + shift)
+                 for k in range(1, HISTORY_MARKERS)]
+        style = dict(styles[name], markevery=[0, *inner, n - 1])
         ax_e.semilogy(t, np.maximum(panels[name]['energy'], FLOOR),
                       label=name, **style)
         if momentum:
             ax_m.semilogy(t, np.maximum(panels[name]['momentum'], FLOOR),
                           label=name, **style)
-    ax_e.set_xlabel('time $t$')
+    # The long-run step is taken from the convergence study, so a power
+    # of two is written as one, as on the step-size axis.
+    h_run = record['parameters']['energy_h']
+    k = np.log2(h_run)
+    h_text = f'2^{{{k:.0f}}}' if k == round(k) else f'{h_run:g}'
+    ax_e.set_xlabel('$t$')
     ax_e.set_ylabel(r'$|H(z_n) - H(z_0)| / |H(z_0)|$')
-    ax_e.set_title(f'energy error, $h = {record["parameters"]["energy_h"]}$')
+    ax_e.set_title(f'energy error, $h = {h_text}$')
     ax_e.set_ylim(bottom=FLOOR)
     if momentum:
         symbol = record.get('momentum_symbol', 'L')
-        ax_m.set_xlabel('time $t$')
+        ax_m.set_xlabel('$t$')
         ax_m.set_ylabel(rf'$|{symbol}(z_n) - {symbol}(z_0)|$')
-        ax_m.set_title(
-            f'momentum error, $h = {record["parameters"]["energy_h"]}$')
+        ax_m.set_title(f'momentum error, $h = {h_text}$')
         ax_m.set_ylim(bottom=FLOOR)
 
     finest = {}
@@ -609,7 +622,7 @@ def plot(record, panels, filename, layout='screen'):
     # Three times matplotlib's default headroom, so the guide labels have
     # room above the upper guide and below the lower one.
     ax_c.margins(y=0.15)
-    ax_c.set_xlabel('step size $h$')
+    ax_c.set_xlabel('$h$')
     ax_c.set_ylabel(r'$\|q_N - q(T)\|_2$' if record['reference']['state']
                     else r'Estimated $\|q_N - q(T)\|_2$')
     ax_c.set_title(f'position error at $T = {record["parameters"]["T"]:.4g}$')

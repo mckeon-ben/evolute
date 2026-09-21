@@ -34,10 +34,11 @@ Z_START = np.array([0.1, -0.2, 0.3, 0.15])
 T = 16.0
 N_LIST = [512, 1024, 2048, 4096, 8192, 16384]
 
-# Long run for the energy history, sampled to keep the file small.
-ENERGY_H = 0.05
-ENERGY_STEPS = 8192
-ENERGY_SAMPLE = 32
+# Long run for the energy history, at the coarsest step of the
+# convergence study, sampled to keep the file small.
+ENERGY_H = T / N_LIST[0]
+ENERGY_STEPS = 16384
+ENERGY_SAMPLE = 64
 
 # Display name -> method. The class name is stored in the data file, so
 # the two energy-volume split variants stay distinguishable.

@@ -40,11 +40,12 @@ LAUNCH_ANGLE = np.pi / 4.0
 T = 16.0
 N_LIST = [4096, 8192, 16384, 32768, 65536, 131072]
 
-# Long run for the energy and angular momentum histories, sampled to
-# keep the file small.
-ENERGY_H = 0.002
-ENERGY_STEPS = 16384
-ENERGY_SAMPLE = 64
+# Long run for the energy and angular momentum histories, at the
+# coarsest step of the convergence study, sampled to keep the file
+# small.
+ENERGY_H = T / N_LIST[0]
+ENERGY_STEPS = 8192
+ENERGY_SAMPLE = 32
 
 # Display name -> method. The class name is stored in the data file, so
 # the two energy-volume split variants stay distinguishable.
