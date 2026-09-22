@@ -38,12 +38,12 @@ LAUNCH_ANGLE = np.pi / 4.0
 
 # Convergence study.
 T = 16.0
-N_LIST = [8192, 16384, 32768, 65536, 131072, 262144]
+N_LIST = [16384, 32768, 65536, 131072, 262144, 524288]
 
 # Long run for the energy history, at the coarsest step of the
 # convergence study, sampled to keep the file small.
 ENERGY_H = T / N_LIST[0]
-ENERGY_STEPS = 262144
+ENERGY_STEPS = 32768
 ENERGY_SAMPLE = 128
 
 # Display name -> method. The class name is stored in the data file, so

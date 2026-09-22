@@ -149,11 +149,6 @@ PALETTE = [
 
 FALLBACK_MARKERS = ['v', 'P', 'X', '*', '<', '>']
 
-# Number of equal intervals the markers divide each time history into.
-# Every history is marked at its first and last samples, and once in
-# each interval between.
-HISTORY_MARKERS = 8
-
 
 def use_latex(enabled=USETEX):
     '''
@@ -546,9 +541,8 @@ def plot(record, panels, filename, layout='screen'):
         Output figure path.
     layout : {'screen', 'print'}, optional
         'screen' (default) puts the panels side by side under a title;
-        'print' stacks them at the journal width, labelled (a), (b), ...,
-        with the legend below and no title, since the caption belongs to
-        the paper.
+        'print' stacks them at the journal width, untitled, with the
+        legend below, since the caption belongs to the paper.
 
     Returns
     -------
@@ -568,16 +562,11 @@ def plot(record, panels, filename, layout='screen'):
     ax_e, ax_c = axes[0], axes[-1]
     ax_m = axes[1] if momentum else None
 
-    n, m = len(t), len(record['method_order'])
-    spacing = (n - 1) / HISTORY_MARKERS
-    for i, name in enumerate(record['method_order']):
-        # Every trace is marked at both ends of the run. The markers in
-        # between are staggered about their nominal positions, so methods
-        # that overlap stay legible.
-        shift = (i - (m - 1) / 2) * spacing / m
-        inner = [round(k * spacing + shift)
-                 for k in range(1, HISTORY_MARKERS)]
-        style = dict(styles[name], markevery=[0, *inner, n - 1])
+    for name in record['method_order']:
+        # The histories are told apart by colour, line style and level;
+        # markers on traces this dense only add clutter, so they are
+        # left to the convergence panel, whose points are the data.
+        style = dict(styles[name], marker='None')
         ax_e.semilogy(t, np.maximum(panels[name]['energy'], FLOOR),
                       label=name, **style)
         if momentum:
@@ -628,9 +617,9 @@ def plot(record, panels, filename, layout='screen'):
     ax_c.set_title(f'position error at $T = {record["parameters"]["T"]:.4g}$')
 
     if layout == 'print':
-        # Panels are labelled by letter alone; the caption describes them.
-        for i, ax in enumerate(axes):
-            ax.set_title(f'({chr(ord("a") + i)})')
+        # Untitled; the caption describes the panels.
+        for ax in axes:
+            ax.set_title('')
         # One legend under the stacked panels, where it covers no data.
         handles, labels = ax_c.get_legend_handles_labels()
         legend_height = 0.6
