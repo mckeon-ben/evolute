@@ -31,6 +31,7 @@ class OneStepMethod(ABC):
     Concrete methods are instantiated directly rather than through the
     base class:
 
+    >>> from evolute import EnergyVolumeSplit, HamiltonianSystem
     >>> system = HamiltonianSystem(2, V=lambda q: 0.5 * (q @ q),
     ...                            grad_V=lambda q: q)
     >>> method = EnergyVolumeSplit()
