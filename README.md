@@ -120,17 +120,14 @@ every step, as in the [quick start](#quick-start).
 `EnergyVolumeSplit` and `ItohAbe` are implicit; the `Symplectic`
 methods are explicit for a separable system.
 
-`EnergyVolumeSplit` and `Symplectic` take `order`, which is 1, 2 or 4
-and defaults to 2; at those orders the `Symplectic` methods are
-symplectic Euler, Störmer–Verlet and Forest–Ruth. Order 2 is the
-symmetric composition `M*_{h/2} o M_{h/2}` of the first-order map *M*
-with its adjoint *M*\*, and order 4 applies that symmetric map at the
-three step lengths of `TRIPLE_JUMP`, Yoshida's coefficients. Energy,
-volume and symplecticity are inherited by such a composition, since
-every factor has them. Only the `Symplectic` methods are symplectic.
-For a non-separable system they take the implicit forms of Hairer,
-Lubich and Wanner, solved by fixed-point iteration, and remain
-symplectic.
+Each class has a first-order map *M*, and its higher orders are
+compositions of that map. Order 2 is `M*_{h/2} o M_{h/2}`, half a step
+of *M* followed by half a step of its adjoint *M*\*, which is symmetric
+and therefore of even order. Order 4 composes that symmetric map three
+times, at step lengths chosen to ensure third-order errors vanish. The
+construction needs a symmetric base map, which is why it builds on
+order 2 and not on *M*, and one of its three step lengths is negative,
+so a fourth-order step runs partly backwards in time.
 
 "Exact" means up to round-off, and for the implicit methods up to the
 solver tolerance `xtol`. The symplectic methods do not conserve energy,
