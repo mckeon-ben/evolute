@@ -199,7 +199,7 @@ gives the substeps in full.
   preservation.
 - `integrate` and `evolve` take the target energy from the initial
   state and pass it to every step. Recomputing it each step would make
-  the rounding of one step the target of the next, and the energy error
+  the rounding of one step the target of the next; the energy error
   would grow like the square root of the number of steps.
 
 ## Examples
