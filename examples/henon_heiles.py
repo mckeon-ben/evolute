@@ -13,7 +13,8 @@ import time
 import numpy as np
 
 from evolute import (
-    EnergyVolumeSplit, Gonzalez, HamiltonianSystem, ItohAbe, Symplectic,
+    EnergyVolumeSplit, evolve, HamiltonianSystem, integrate, ItohAbe,
+    Symplectic,
 )
 
 
@@ -45,15 +46,17 @@ ENERGY_SAMPLE = ENERGY_STEPS // ENERGY_SAMPLES
 assert ENERGY_STEPS % ENERGY_SAMPLES == 0, \
     'ENERGY_STEPS must be a multiple of ENERGY_SAMPLES'
 
-# Display name -> method. The class name is stored in the data file, so
-# the two energy-volume split variants stay distinguishable.
+# Display name -> method, grouped by class and ordered within it. The
+# class name is stored in the data file, so the variants of a class stay
+# distinguishable; the plot gives each class a colour and a marker, and
+# each order a line style.
 METHODS = {
-    'Symplectic Euler': Symplectic(symmetric=False),
-    'Störmer-Verlet': Symplectic(),
-    'Itoh-Abe': ItohAbe(),
-    'Gonzalez': Gonzalez(),
-    'Energy-volume split (1)': EnergyVolumeSplit(symmetric=False),
-    'Energy-volume split (2)': EnergyVolumeSplit(),
+    'Symplectic Euler': Symplectic(order=1),
+    'Störmer-Verlet': Symplectic(order=2),
+    'Itoh-Abe (1)': ItohAbe(order=1),
+    'Itoh-Abe (2)': ItohAbe(order=2),
+    'Energy-volume split (1)': EnergyVolumeSplit(order=1),
+    'Energy-volume split (2)': EnergyVolumeSplit(order=2),
 }
 
 
@@ -109,10 +112,7 @@ def final_state(method, system, z0, T, N):
     np.ndarray
         Final state, shape (2n,).
     '''
-    z, h = np.array(z0, dtype=float), T / N
-    for _ in range(N):
-        z = method.step(system, z, h)
-    return z
+    return integrate(method, system, z0, T / N, N)
 
 
 def energy_history(method, system, z0, h, steps, sample):
@@ -141,10 +141,8 @@ def energy_history(method, system, z0, h, steps, sample):
     err : np.ndarray
         Energy error at those times.
     '''
-    z = np.array(z0, dtype=float)
     t, err = [], []
-    for k in range(1, steps + 1):
-        z = method.step(system, z, h)
+    for k, z in enumerate(evolve(method, system, z0, h, steps), start=1):
         if k % sample == 0:
             t.append(k * h)
             err.append(system.energy_error(z0, z))

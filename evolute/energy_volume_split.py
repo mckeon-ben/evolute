@@ -23,15 +23,10 @@ M   : holds E fixed and composes symplectic Euler substeps, each acting
 Hence Phi conserves H exactly (to round-off) and preserves phase-space
 volume exactly; it is not symplectic. The first-order method is M; the
 symmetric second-order method is  M*_{h/2} o M_{h/2}, with M* the
-adjoint (substeps reversed, each replaced by its adjoint Euler variant).
-
-Momentum. If F does not depend on some qk, k >= 3 (a cyclic coordinate,
-as the azimuth is for an axisymmetric potential in cylindrical
-coordinates), the (q', p') substep leaves pk unchanged, and no other
-substep touches it. The conjugate momentum is then conserved exactly
-alongside energy and volume. The symmetry must be expressed through a
-cyclic coordinate: in other coordinates the splitting generally breaks
-the corresponding conservation law.
+adjoint (substeps reversed, each replaced by its adjoint Euler
+variant); the fourth-order method applies that symmetric map at the
+three step lengths of TRIPLE_JUMP. Energy and volume are inherited by
+any such composition, since every factor conserves them.
 
 The change of variables is singular where p1 = p2 = 0, and the scalar
 equations are contractions only while h |dF/dq| / rho < 1.
@@ -50,7 +45,7 @@ Integrators. arXiv preprint math/0607641.
 '''
 
 import numpy as np
-from scipy.optimize import newton
+from scipy.optimize import brentq, newton
 
 from .integrator import OneStepMethod
 
@@ -64,9 +59,9 @@ class EnergyVolumeSplit(OneStepMethod):
 
     Parameters
     ----------
-    symmetric : bool, optional
-        True (default) for the symmetric second-order method
-        M*_{h/2} o M_{h/2}; False for the first-order method M.
+    order : int, optional
+        1 for the first-order method M, 2 (default) for the symmetric
+        method M*_{h/2} o M_{h/2}, and 4 for its triple jump.
     xtol : float, optional
         Tolerance for the scalar implicit equations and, for a
         non-separable system, the fixed-point iteration. Default 1e-14.
@@ -76,22 +71,21 @@ class EnergyVolumeSplit(OneStepMethod):
 
     Notes
     -----
-    - First- or second-order accurate in h
+    - First-, second- or fourth-order accurate in h
     - Conserves energy exactly, to round-off
     - Volume-preserving in phase space, but not symplectic
-    - Conserves the momentum conjugate to a cyclic coordinate among
-      q3, ..., qn
     - Singular where p1 = p2 = 0
     '''
 
-    def __init__(self, symmetric=True, xtol=1e-14, maxiter=100):
-        self.symmetric = symmetric
-        self.order = 2 if symmetric else 1
+    def __init__(self, order=2, xtol=1e-14, maxiter=100):
+        if order not in (1, 2, 4):
+            raise ValueError(f'order must be 1, 2 or 4, got {order!r}')
+        self.order = order
         self.name = 'Energy-volume split'
         self.xtol = xtol
         self.maxiter = maxiter
 
-    def step(self, system, z0, h):
+    def step(self, system, z0, h, E=None):
         '''
         Advance the state by one step.
 
@@ -103,11 +97,15 @@ class EnergyVolumeSplit(OneStepMethod):
             Current state, shape (2n,).
         h : float
             Step size; may be negative.
+        E : float, optional
+            Energy the step holds. By default H(z0), the map described
+            above; over a run, integrate supplies the energy of the
+            initial state instead.
 
         Returns
         -------
         np.ndarray
-            New state z1, shape (2n,), with H(z1) = H(z0) to round-off.
+            New state z1, shape (2n,), with H(z1) = E to round-off.
 
         Raises
         ------
@@ -117,28 +115,119 @@ class EnergyVolumeSplit(OneStepMethod):
             If a scalar implicit equation or the fixed-point iteration
             does not converge.
         '''
+        return self._by_order(system, z0, h,
+                              system.H(z0) if E is None else E)
+
+    def _first(self, system, z0, h, E=None):
+        '''
+        Apply the first-order method M.
+
+        Parameters
+        ----------
+        system : HamiltonianSystem
+            System to integrate.
+        z0 : np.ndarray
+            Current state, shape (2n,).
+        h : float
+            Step size; may be negative.
+        E : float, optional
+            Energy the step holds; by default H(z0).
+
+        Returns
+        -------
+        np.ndarray
+            New state z1, shape (2n,).
+        '''
         # Psi: to the new variables (E, phi, q, p').
         # q and pr are updated in place by the substeps.
         q, p = system.split(np.array(z0, dtype=float))
         pr = p[2:]
-        E = system.H(z0)
+        E = system.H(z0) if E is None else E
+        phi = self._forward(system, E, np.arctan2(p[1], p[0]), q, pr, h)
+        return self._rebuild(system, E, phi, q, pr)
+
+    def _symmetric(self, system, z0, h, E=None):
+        '''
+        Apply the symmetric method M*_{h/2} o M_{h/2}.
+
+        Parameters
+        ----------
+        system : HamiltonianSystem
+            System to integrate.
+        z0 : np.ndarray
+            Current state, shape (2n,).
+        h : float
+            Step size; may be negative.
+        E : float, optional
+            Energy the step holds; by default H(z0).
+
+        Returns
+        -------
+        np.ndarray
+            New state z1, shape (2n,).
+        '''
+        q, p = system.split(np.array(z0, dtype=float))
+        pr = p[2:]
+        E = system.H(z0) if E is None else E
         phi = np.arctan2(p[1], p[0])
+        phi = self._forward(system, E, phi, q, pr, 0.5 * h)
+        phi = self._adjoint(system, E, phi, q, pr, 0.5 * h)
+        return self._rebuild(system, E, phi, q, pr)
 
-        if self.symmetric:
-            phi = self._forward(system, E, phi, q, pr, 0.5 * h)
-            phi = self._adjoint(system, E, phi, q, pr, 0.5 * h)
-        else:
-            phi = self._forward(system, E, phi, q, pr, h)
+    def _rebuild(self, system, E, phi, q, pr):
+        '''
+        Apply Psi^{-1}: rebuild the pair (p1, p2) on {H = E}.
 
-        # Psi^{-1}: rebuild the pair on {H = E}.
+        Parameters
+        ----------
+        system : HamiltonianSystem
+            System supplying V and T.
+        E : float
+            Energy, held fixed through the step.
+        phi : float
+            Angle of (p1, p2).
+        q : np.ndarray
+            Positions, shape (n,).
+        pr : np.ndarray
+            Momenta (p3, ..., pn), shape (n - 2,).
+
+        Returns
+        -------
+        np.ndarray
+            State (q, p1, p2, p3, ..., pn), shape (2n,).
+        '''
         rho = self._rho(system, E, q, pr)
-        pair = [rho * np.cos(phi), rho * np.sin(phi)]
-        return np.concatenate([q, pair, pr])
+        return np.concatenate([q, [rho * np.cos(phi), rho * np.sin(phi)],
+                               pr])
 
     # --- change of variables ---------------------------------------------
 
     @staticmethod
-    def _rho(system, E, q, pr):
+    def _r2(system, E, q, pr):
+        '''
+        Evaluate rho^2 = 2 (E - V(q) - T(q, pr)), of either sign.
+
+        Parameters
+        ----------
+        system : HamiltonianSystem
+            System supplying V and T.
+        E : float
+            Energy, held fixed through the step.
+        q : np.ndarray
+            Positions, shape (n,).
+        pr : np.ndarray
+            Momenta (p3, ..., pn), shape (n - 2,).
+
+        Returns
+        -------
+        float
+            2 (E - V - T); positive inside the accessible region
+            {F < E} and negative outside it.
+        '''
+        return 2.0 * (E - system.V(q) - system.T(q, pr))
+
+    @classmethod
+    def _rho(cls, system, E, q, pr):
         '''
         Recover rho = sqrt(p1^2 + p2^2) from the energy.
 
@@ -163,7 +252,7 @@ class EnergyVolumeSplit(OneStepMethod):
         ValueError
             If E - V - T <= 0, the singular set p1 = p2 = 0.
         '''
-        r2 = 2.0 * (E - system.V(q) - system.T(q, pr))
+        r2 = cls._r2(system, E, q, pr)
         if r2 <= 0.0:
             raise ValueError(
                 'Energy-volume split reached the singular set '
@@ -346,7 +435,14 @@ class EnergyVolumeSplit(OneStepMethod):
 
     def _solve_position(self, system, E, q, pr, i, a):
         '''
-        Solve x = q[i] + a rho(q with q[i] = x) for x.
+        Solve x = q[i] + a rho(q with q[i] = x) for x, by bracketing.
+
+        Outside the accessible region F < E the square root is read as
+        zero, which continues the residual to the whole line. It has one
+        sign at q[i] and the other far enough out on the side a points
+        to, so doubling that offset brackets the root for Brent's
+        method. A secant iteration can instead step past the boundary,
+        where rho turns back, and run away.
 
         Parameters
         ----------
@@ -367,12 +463,38 @@ class EnergyVolumeSplit(OneStepMethod):
         -------
         float
             New value of q[i].
+
+        Raises
+        ------
+        ValueError
+            If the root lies outside the accessible region, the singular
+            set p1 = p2 = 0.
+        RuntimeError
+            If no bracket is found within maxiter doublings.
         '''
         qi = q[i]
+        if a == 0.0:
+            return qi
         trial = q.copy()
 
         def residual(x):
             trial[i] = x
-            return x - qi - a * self._rho(system, E, trial, pr)
+            return x - qi - a * np.sqrt(max(self._r2(system, E, trial, pr),
+                                            0.0))
 
-        return self._solve(residual, qi + a * self._rho(system, E, q, pr))
+        side = np.sign(a)
+        offset = abs(a) * self._rho(system, E, q, pr)
+        for _ in range(self.maxiter):
+            if side * residual(qi + side * offset) >= 0.0:
+                break
+            offset *= 2.0
+        else:
+            raise RuntimeError(
+                f'{self.name} failed to bracket the position equation'
+            )
+        lo, hi = sorted((qi, qi + side * offset))
+        x = brentq(residual, lo, hi, xtol=self.xtol, maxiter=self.maxiter)
+        trial[i] = x
+        # Confirm the root is one the change of variables can reach.
+        self._rho(system, E, trial, pr)
+        return x

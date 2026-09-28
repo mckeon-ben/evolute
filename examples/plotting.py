@@ -1,8 +1,7 @@
 '''
 Reads JSON data files, turning the stored final states into error
 estimates, observed orders and convergence figures, and the stored
-energy histories into energy-error plots. Data files that also store
-momentum histories get a momentum-error panel as well.
+energy histories into energy-error plots.
 
 Run with no arguments to plot every data file in the data folder, or
 name one or more files.
@@ -17,9 +16,7 @@ and 'energy_error', sampled at the times in 'energy_time'. 'parameters'
 must carry 'T', the final time of the convergence study, and
 'energy_h', the step of the long run.
 
-Optional: 'momentum_error', present for every method, adds a momentum
-panel, labelled with 'momentum_symbol' (default 'L'). Anything else in
-the file is ignored.
+Anything else in the file is ignored.
 
 From final states to errors
 ---------------------------
@@ -133,7 +130,6 @@ plt.rcParams.update({
 MARKERS = {
     'Symplectic': 'o',
     'ItohAbe': 's',
-    'Gonzalez': '^',
     'EnergyVolumeSplit': 'D',
 }
 
@@ -148,6 +144,11 @@ PALETTE = [
 ]
 
 FALLBACK_MARKERS = ['v', 'P', 'X', '*', '<', '>']
+
+# Line style by order, so the order reads off the figure in black and
+# white as well as the class does from the marker. Orders not listed
+# are drawn solid.
+LINE_STYLES = {1: '--', 2: '-', 4: '-.'}
 
 
 def use_latex(enabled=USETEX):
@@ -291,10 +292,9 @@ def assign_styles(record):
     '''
     Line style, marker and colour for every method.
 
-    Methods of the same class share a colour and a marker, so a
-    first-order method and its symmetric composition are drawn alike
-    except that first-order methods are dashed and second-order ones
-    solid. The marker keeps the classes apart in black and white.
+    Methods of the same class share a colour and a marker, and differ
+    by line style, which follows the order through LINE_STYLES. The
+    marker keeps the classes apart in black and white.
 
     Parameters
     ----------
@@ -314,8 +314,8 @@ def assign_styles(record):
             cls, FALLBACK_MARKERS[len(markers) % len(FALLBACK_MARKERS)]))
         styles[name] = {
             'color': colours[cls],
-            'linestyle': '--' if record['methods'][name]['order'] == 1
-            else '-',
+            'linestyle': LINE_STYLES.get(record['methods'][name]['order'],
+                                         '-'),
             'marker': markers[cls],
         }
     return styles
@@ -461,8 +461,8 @@ def analyse(record):
     -------
     dict
         Display name -> dict with the step sizes 'h', the position
-        errors 'err', the observed 'orders', the sampled energy error
-        'energy' and, if stored, the sampled momentum error 'momentum'.
+        errors 'err', the observed 'orders' and the sampled energy
+        error 'energy'.
     '''
     ref = record['reference']['state']
     out = {}
@@ -472,33 +472,12 @@ def analyse(record):
                                      entry['order'], ref)
         out[name] = {'h': h, 'err': err, 'orders': orders,
                      'energy': np.asarray(entry['energy_error'])}
-        if 'momentum_error' in entry:
-            out[name]['momentum'] = np.asarray(entry['momentum_error'])
     return out
-
-
-def has_momentum(panels):
-    '''
-    Whether every method in a record has a momentum history.
-
-    Parameters
-    ----------
-    panels : dict
-        Per-method results, as returned by analyse.
-
-    Returns
-    -------
-    bool
-        True if a momentum panel can be drawn.
-    '''
-    return all('momentum' in p for p in panels.values())
 
 
 def print_tables(record, panels):
     '''
     Print the maximum errors and the observed order of each method.
-
-    The maximum momentum error is included when every method has one.
 
     Parameters
     ----------
@@ -508,28 +487,22 @@ def print_tables(record, panels):
         Per-method results, as returned by analyse.
     '''
     kind = record['reference']['kind']
-    momentum = has_momentum(panels)
     width = max(26, max(len(name) for name in record['method_order']))
-    rule = '-' * (width + 46 + (21 if momentum else 0))
+    rule = '-' * (width + 46)
     print(f'\n{record["experiment"]}  (reference: {kind})')
     print(rule)
     print(f'{"Method":<{width}s} {"max energy error":>17s}'
-          + (f' {"max momentum error":>20s}' if momentum else '')
-          + f' {"order":>7s} {"finest error":>14s}')
+          f' {"order":>7s} {"finest error":>14s}')
     print(rule)
     for name in record['method_order']:
         p = panels[name]
         print(f'{name:<{width}s} {p["energy"].max():>17.2e}'
-              + (f' {p["momentum"].max():>20.2e}' if momentum else '')
-              + f' {p["orders"][-1]:>7.2f} {p["err"][-1]:>14.2e}')
+              f' {p["orders"][-1]:>7.2f} {p["err"][-1]:>14.2e}')
 
 
 def plot(record, panels, filename, layout='screen'):
     '''
     Energy error against time, and position error against step size.
-
-    When every method has a momentum history, a panel of the momentum
-    error against time is drawn between the two.
 
     Parameters
     ----------
@@ -551,16 +524,12 @@ def plot(record, panels, filename, layout='screen'):
     '''
     styles = assign_styles(record)
     t = np.asarray(record['energy_time'])
-    momentum = has_momentum(panels)
-    n_panels = 3 if momentum else 2
     if layout == 'print':
-        fig, axes = plt.subplots(n_panels, 1,
-                                 figsize=(PRINT_WIDTH, 2.1 * n_panels + 0.6))
+        fig, axes = plt.subplots(2, 1,
+                                 figsize=(PRINT_WIDTH, 2.1 * 2 + 0.6))
     else:
-        fig, axes = plt.subplots(1, n_panels,
-                                 figsize=(16 if momentum else 11, 4.4))
-    ax_e, ax_c = axes[0], axes[-1]
-    ax_m = axes[1] if momentum else None
+        fig, axes = plt.subplots(1, 2, figsize=(11, 4.4))
+    ax_e, ax_c = axes
 
     for name in record['method_order']:
         # The histories are told apart by colour, line style and level;
@@ -569,9 +538,6 @@ def plot(record, panels, filename, layout='screen'):
         style = dict(styles[name], marker='None')
         ax_e.semilogy(t, np.maximum(panels[name]['energy'], FLOOR),
                       label=name, **style)
-        if momentum:
-            ax_m.semilogy(t, np.maximum(panels[name]['momentum'], FLOOR),
-                          label=name, **style)
     # The long-run step is taken from the convergence study, so a power
     # of two is written as one, as on the step-size axis.
     h_run = record['parameters']['energy_h']
@@ -581,12 +547,6 @@ def plot(record, panels, filename, layout='screen'):
     ax_e.set_ylabel(r'$|H(z_n) - H(z_0)| / |H(z_0)|$')
     ax_e.set_title(f'energy error, $h = {h_text}$')
     ax_e.set_ylim(bottom=FLOOR)
-    if momentum:
-        symbol = record.get('momentum_symbol', 'L')
-        ax_m.set_xlabel('$t$')
-        ax_m.set_ylabel(rf'$|{symbol}(z_n) - {symbol}(z_0)|$')
-        ax_m.set_title(f'momentum error, $h = {h_text}$')
-        ax_m.set_ylim(bottom=FLOOR)
 
     finest = {}
     for name in record['method_order']:
@@ -622,9 +582,12 @@ def plot(record, panels, filename, layout='screen'):
             ax.set_title('')
         # One legend under the stacked panels, where it covers no data.
         handles, labels = ax_c.get_legend_handles_labels()
-        legend_height = 0.6
+        # Two columns, since the names are long, and enough height for
+        # the rows they take.
+        ncol = 2
+        legend_height = 0.2 * -(-len(labels) // ncol)
         fig.tight_layout(rect=(0, legend_height / fig.get_figheight(), 1, 1))
-        fig.legend(handles, labels, loc='lower center', ncol=2,
+        fig.legend(handles, labels, loc='lower center', ncol=ncol,
                    frameon=False)
     else:
         ax_c.legend(loc='center left', bbox_to_anchor=(1.02, 0.5))

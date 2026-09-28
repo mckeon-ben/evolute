@@ -129,9 +129,6 @@ class HamiltonianSystem:
         momenta alone. For a separable system the methods skip their
         fixed-point iterations: the symplectic methods are then
         explicit, as is the last substep of EnergyVolumeSplit.
-    invariants : callable, optional
-        invariants(q, p) returning a dict of additional first
-        integrals, name -> value.
     name : str, optional
         Display name, used in labels and titles.
 
@@ -180,7 +177,7 @@ class HamiltonianSystem:
     '''
 
     def __init__(self, n, V, grad_V, T=None, grad_T=None,
-                 separable=None, invariants=None, name=None):
+                 separable=None, name=None):
         if n < 2:
             raise ValueError(f'n must be at least 2, got {n}')
         if (T is None) != (grad_T is None):
@@ -191,7 +188,6 @@ class HamiltonianSystem:
         self.T = T if T is not None else _default_T
         self.grad_T = grad_T if grad_T is not None else _default_grad_T
         self.separable = (T is None) if separable is None else separable
-        self._invariants = invariants
         self.name = name or 'system'
 
     def __repr__(self):
@@ -354,21 +350,3 @@ class HamiltonianSystem:
         '''
         H0 = self.H(z0)
         return abs(self.H(z) - H0) / abs(H0)
-
-    def invariants(self, z):
-        '''
-        Evaluate the additional first integrals supplied at construction.
-
-        Parameters
-        ----------
-        z : np.ndarray
-            State, shape (2n,).
-
-        Returns
-        -------
-        dict
-            Name -> value; empty if none were supplied.
-        '''
-        if self._invariants is None:
-            return {}
-        return self._invariants(*self.split(z))

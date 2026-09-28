@@ -11,10 +11,10 @@ import os
 import time
 
 import numpy as np
-from scipy.special import jv
 
 from evolute import (
-    EnergyVolumeSplit, Gonzalez, HamiltonianSystem, ItohAbe, Symplectic,
+    EnergyVolumeSplit, evolve, HamiltonianSystem, integrate, ItohAbe,
+    Symplectic,
 )
 
 
@@ -46,24 +46,23 @@ ENERGY_SAMPLE = ENERGY_STEPS // ENERGY_SAMPLES
 assert ENERGY_STEPS % ENERGY_SAMPLES == 0, \
     'ENERGY_STEPS must be a multiple of ENERGY_SAMPLES'
 
-# Display name -> method. The class name is stored in the data file, so
-# the two energy-volume split variants stay distinguishable.
+# Display name -> method, grouped by class and ordered within it. The
+# class name is stored in the data file, so the variants of a class stay
+# distinguishable; the plot gives each class a colour and a marker, and
+# each order a line style.
 METHODS = {
-    'Symplectic Euler': Symplectic(symmetric=False),
-    'Störmer-Verlet': Symplectic(),
-    'Itoh-Abe': ItohAbe(),
-    'Gonzalez': Gonzalez(),
-    'Energy-volume split (1)': EnergyVolumeSplit(symmetric=False),
-    'Energy-volume split (2)': EnergyVolumeSplit(),
+    'Symplectic Euler': Symplectic(order=1),
+    'Störmer-Verlet': Symplectic(order=2),
+    'Itoh-Abe (1)': ItohAbe(order=1),
+    'Itoh-Abe (2)': ItohAbe(order=2),
+    'Energy-volume split (1)': EnergyVolumeSplit(order=1),
+    'Energy-volume split (2)': EnergyVolumeSplit(order=2),
 }
 
 
 def kepler(mu=MU):
     '''
     Build the planar Kepler problem, V(q) = -mu / |q|.
-
-    Supplies the angular momentum and the Laplace-Runge-Lenz vector as
-    invariants.
 
     Parameters
     ----------
@@ -82,13 +81,7 @@ def kepler(mu=MU):
     def grad_V(q):
         return mu * q / np.linalg.norm(q) ** 3
 
-    def invariants(q, p):
-        L = q[0] * p[1] - q[1] * p[0]
-        A = np.array([p[1] * L, -p[0] * L]) - mu * q / np.linalg.norm(q)
-        return {'angular_momentum': L, 'lrl_x': A[0], 'lrl_y': A[1]}
-
-    return HamiltonianSystem(2, V, grad_V, invariants=invariants,
-                             name='Kepler')
+    return HamiltonianSystem(2, V, grad_V, name='Kepler')
 
 
 def _elements(z0, mu):
@@ -133,17 +126,57 @@ def _elements(z0, mu):
     return a, e, P, Q, E0
 
 
-def kepler_exact(z0, t, mu=MU, terms=40):
+def _eccentric_anomaly(M, e, xtol=1e-15, maxiter=50):
+    '''
+    Solve Kepler's equation M = E - e sin E by Newton's method.
+
+    The left-hand side has derivative 1 - e cos E, which is at least
+    1 - e > 0 for an ellipse, so the equation has one root and Newton's
+    method converges quadratically: from the first-order guess
+    E = M + e sin M it reaches round-off in a handful of iterations.
+
+    Parameters
+    ----------
+    M : float
+        Mean anomaly.
+    e : float
+        Eccentricity, below 1.
+    xtol : float, optional
+        Stop once a Newton correction falls to this size. Default 1e-15.
+    maxiter : int, optional
+        Iteration limit. Default 50.
+
+    Returns
+    -------
+    float
+        Eccentric anomaly E.
+
+    Raises
+    ------
+    RuntimeError
+        If the iteration does not converge within maxiter steps.
+    '''
+    E = M + e * np.sin(M)
+    for _ in range(maxiter):
+        dE = (E - e * np.sin(E) - M) / (1.0 - e * np.cos(E))
+        E -= dE
+        if abs(dE) <= xtol:
+            return E
+    raise RuntimeError("Kepler's equation failed to converge")
+
+
+def kepler_exact(z0, t, mu=MU):
     '''
     Exact state at time t on the elliptic orbit through z0.
 
-    Kepler's equation is solved by the Lagrange-Bessel series
+    Advances the mean anomaly, drops whole turns from it, since only
+    cos E and sin E are needed afterwards, and inverts Kepler's equation
+    for the eccentric anomaly.
 
-        E = M + sum_k (2 / k) J_k(k e) sin(k M),
-
-    which converges for eccentricities below the Laplace limit, about
-    0.6627. Whole turns are dropped from the mean anomaly first, since
-    only cos E and sin E are needed afterwards.
+    In the perifocal frame (P, Q) the ellipse is
+    q = a (cos E - e) P + b sin E Q, with b its semi-minor axis, and the
+    radius is r = a (1 - e cos E). The velocity is dq/dE scaled by
+    dE/dt = sqrt(mu / a) / r.
 
     Parameters
     ----------
@@ -153,8 +186,6 @@ def kepler_exact(z0, t, mu=MU, terms=40):
         Time.
     mu : float, optional
         Gravitational parameter.
-    terms : int, optional
-        Number of terms of the series.
 
     Returns
     -------
@@ -164,12 +195,12 @@ def kepler_exact(z0, t, mu=MU, terms=40):
     a, e, P, Q, E0 = _elements(z0, mu)
     M = E0 - e * np.sin(E0) + np.sqrt(mu / a ** 3) * t
     M = (M + np.pi) % (2.0 * np.pi) - np.pi
-    k = np.arange(1, terms + 1)
-    E = M + np.sum(2.0 / k * jv(k, k * e) * np.sin(k * M))
-    b = np.sqrt(1.0 - e * e)
-    q = a * (np.cos(E) - e) * P + a * b * np.sin(E) * Q
-    speed = np.sqrt(mu * a) / (a * (1.0 - e * np.cos(E)))
-    p = speed * (-np.sin(E) * P + b * np.cos(E) * Q)
+    E = _eccentric_anomaly(M, e)
+    r = a * (1.0 - e * np.cos(E))
+    b = a * np.sqrt(1.0 - e * e)
+    q = a * (np.cos(E) - e) * P + b * np.sin(E) * Q
+    scale = np.sqrt(mu / a) / r
+    p = scale * (-a * np.sin(E) * P + b * np.cos(E) * Q)
     return np.concatenate([q, p])
 
 
@@ -195,10 +226,7 @@ def final_state(method, system, z0, T, N):
     np.ndarray
         Final state, shape (2n,).
     '''
-    z, h = np.array(z0, dtype=float), T / N
-    for _ in range(N):
-        z = method.step(system, z, h)
-    return z
+    return integrate(method, system, z0, T / N, N)
 
 
 def energy_history(method, system, z0, h, steps, sample):
@@ -227,10 +255,8 @@ def energy_history(method, system, z0, h, steps, sample):
     err : np.ndarray
         Energy error at those times.
     '''
-    z = np.array(z0, dtype=float)
     t, err = [], []
-    for k in range(1, steps + 1):
-        z = method.step(system, z, h)
+    for k, z in enumerate(evolve(method, system, z0, h, steps), start=1):
         if k % sample == 0:
             t.append(k * h)
             err.append(system.energy_error(z0, z))

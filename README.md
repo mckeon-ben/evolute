@@ -5,11 +5,10 @@
 `evolute` provides one-step integrators for Hamiltonian systems. Its
 central method, `EnergyVolumeSplit`, conserves energy and preserves
 phase-space volume exactly, for systems with two or more degrees of
-freedom, and also conserves the momentum conjugate to a cyclic
-coordinate outside the isotropic pair. It is not symplectic, which is
-what allows energy and volume preservation at once. Symplectic
-and discrete gradient methods are included as comparison baselines,
-alongside scripts for three test problems.
+freedom. It is not symplectic, which is what allows energy and volume
+preservation at once. Symplectic and discrete gradient methods are
+included as comparison baselines, alongside scripts for three test
+problems.
 
 ## Contents
 
@@ -42,7 +41,7 @@ scripts in `examples/` also need a LaTeX installation; see
 
 ```python
 import numpy as np
-from evolute import EnergyVolumeSplit, HamiltonianSystem
+from evolute import EnergyVolumeSplit, HamiltonianSystem, integrate
 
 
 def V(q):
@@ -59,14 +58,13 @@ system = HamiltonianSystem(2, V, grad_V, name='Henon-Heiles')
 method = EnergyVolumeSplit()          # symmetric, second order
 
 z0 = np.array([0.1, -0.2, 0.3, 0.15])  # (q1, q2, p1, p2)
-z = z0.copy()
-for _ in range(1000):
-    z = method.step(system, z, 0.05)
+z = integrate(method, system, z0, 0.05, 1000)
 
 print(system.energy_error(z0, z))
 ```
 
-The printed relative energy error is at round-off, below `1e-14`.
+The printed relative energy error is at round-off, here exactly zero.
+For fourth order, pass `order=4`; nothing else changes.
 
 ## Systems
 
@@ -88,8 +86,7 @@ A system is built from:
 - optionally `separable`, which records whether *T* is independent of
   *q*. It defaults to `True` when *T* is omitted and `False` when it is
   supplied, so pass `True` for a supplied *T* of the momenta alone;
-- optionally `invariants(q, p)`, returning a dictionary of further
-  first integrals, and a display `name`.
+- optionally a display `name`.
 
 Letting *T* depend on *q* admits curvilinear coordinates. In
 cylindrical coordinates `(R, z, phi)`, for example, an axisymmetric
@@ -105,35 +102,44 @@ package; see [Examples](#examples).
 
 ## Methods
 
-Every method has `step(system, z0, h)`, which returns the new state as
-a new array and leaves `z0` unchanged, and the attributes `name` and
-`order`. A run is a loop over `step`, as in the
-[quick start](#quick-start).
+Every method has `step(system, z0, h, E=None)`, which returns the new
+state as a new array and leaves `z0` unchanged, and the attributes
+`name` and `order`. `E` is the energy an energy-conserving method holds
+through the step, and the other methods ignore it.
 
-| Method              | Class               | Order | Energy | Volume |
-| ------------------- | ------------------- | ----- | ------ | ------ |
-| Energy-volume split | `EnergyVolumeSplit` | 2     | exact  | exact  |
-| Energy-volume split | `EnergyVolumeSplit` | 1     | exact  | exact  |
-| Störmer–Verlet      | `Symplectic`        | 2     | no     | exact  |
-| Symplectic Euler    | `Symplectic`        | 1     | no     | exact  |
-| Gonzalez            | `Gonzalez`          | 2     | exact  | no     |
-| Itoh–Abe            | `ItohAbe`           | 1     | exact  | no     |
+A run goes through `integrate(method, system, z0, h, steps)`, which
+returns the final state, or `evolve`, which yields the state after
+every step, as in the [quick start](#quick-start).
 
-`EnergyVolumeSplit` and `Symplectic` take `symmetric`, which defaults
-to `True` and gives the second-order method; `False` gives the
-first-order one. Only Störmer–Verlet and symplectic Euler are
-symplectic. They are explicit for a separable system; otherwise they
-take the implicit forms of Hairer, Lubich and Wanner, solved by
-fixed-point iteration, and remain symplectic.
+| Method              | Class               | Orders  | Energy | Volume |
+| ------------------- | ------------------- | ------- | ------ | ------ |
+| Energy-volume split | `EnergyVolumeSplit` | 1, 2, 4 | exact  | exact  |
+| Symplectic          | `Symplectic`        | 1, 2, 4 | no     | exact  |
+| Itoh–Abe            | `ItohAbe`           | 1, 2, 4 | exact  | no     |
+
+`EnergyVolumeSplit` and `ItohAbe` are implicit; the `Symplectic`
+methods are explicit for a separable system.
+
+`EnergyVolumeSplit` and `Symplectic` take `order`, which is 1, 2 or 4
+and defaults to 2; at those orders the `Symplectic` methods are
+symplectic Euler, Störmer–Verlet and Forest–Ruth. Order 2 is the
+symmetric composition `M*_{h/2} o M_{h/2}` of the first-order map *M*
+with its adjoint *M*\*, and order 4 applies that symmetric map at the
+three step lengths of `TRIPLE_JUMP`, Yoshida's coefficients. Energy,
+volume and symplecticity are inherited by such a composition, since
+every factor has them. Only the `Symplectic` methods are symplectic.
+For a non-separable system they take the implicit forms of Hairer,
+Lubich and Wanner, solved by fixed-point iteration, and remain
+symplectic.
 
 "Exact" means up to round-off, and for the implicit methods up to the
 solver tolerance `xtol`. The symplectic methods do not conserve energy,
 but for these problems their energy error stays bounded rather than
 drifting.
 
-The second-order methods `EnergyVolumeSplit()` and `Symplectic()` are
-each the symmetric composition `M*_{h/2} o M_{h/2}` of a first-order
-map *M* with its adjoint *M*\*. `Gonzalez` is already symmetric.
+`ItohAbe` takes `order` in the same way. Its first-order map sweeps the
+coordinates in increasing order; the adjoint, which sweeps them in
+reverse, is `ItohAbe(reverse=True)`, and order 2 composes the two.
 
 The base classes `PartitionedMethod` and `ImplicitMethod` are exported
 for writing new methods. `PartitionedMethod` subclasses inherit kick
@@ -162,14 +168,6 @@ same plane, which is why the method can have both properties without
 being symplectic. The module docstring of `energy_volume_split.py`
 gives the substeps in full.
 
-If *H* does not depend on some `qk` with `k >= 3`, the last substep
-leaves `pk` unchanged and no other substep touches it, so that momentum
-is conserved exactly too. A spatial symmetry therefore carries over
-only when it is expressed through a cyclic coordinate among
-`q3, ..., qn`: for an axisymmetric potential, the azimuth of
-cylindrical coordinates. In Cartesian coordinates the splitting breaks
-the symmetry, and the angular momentum is no longer conserved.
-
 ## Things to know
 
 - Systems must have the form above, with `n >= 2`.
@@ -185,26 +183,28 @@ the symmetry, and the angular momentum is no longer conserved.
 - The momentum pair is fixed for the whole run. Switching pairs
   adaptively to avoid the singular set would break volume
   preservation.
+- `integrate` and `evolve` take the target energy from the initial
+  state and pass it to every step. Recomputing it each step would make
+  the rounding of one step the target of the next, and the energy error
+  would grow like the square root of the number of steps.
 
 ## Examples
 
 The scripts in `examples/` integrate every method twice over and write
 the results to JSON: a convergence study to a fixed final time at a
 sequence of step counts, and a long run at a single step size recording
-the energy error (and, in `logarithmic_potential.py`, the angular
-momentum error):
+the energy error:
 
-| Script                     | System                                     |
-| -------------------------- | ------------------------------------------ |
-| `kepler.py`                | Planar Kepler problem                      |
-| `henon_heiles.py`          | Hénon–Heiles system                        |
-| `logarithmic_potential.py` | Axisymmetric logarithmic potential, n = 3  |
+| Script                     | System                                      |
+| -------------------------- | ------------------------------------------- |
+| `kepler.py`                | Planar Kepler problem                       |
+| `henon_heiles.py`          | Hénon–Heiles system                         |
+| `logarithmic_potential.py` | Logarithmic potential, n = 3, not separable |
 
 `plotting.py` turns the data files into error estimates, observed
-orders and figures, each pairing the energy error against time with the
-position error against step size, with a momentum-error panel added
-when the data file has one. The scripts can be run from any directory:
-data files always go to `examples/data/` and figures to
+orders and figures, each pairing the energy error against time with
+the position error against step size. The scripts can be run from any
+directory: data files always go to `examples/data/` and figures to
 `examples/plots/`.
 
 ```bash
@@ -232,10 +232,10 @@ evolute/
     __init__.py              public API
     system.py                HamiltonianSystem, canonical_J
     integrator.py            OneStepMethod, PartitionedMethod,
-                             ImplicitMethod
+                             ImplicitMethod, integrate, evolve
     energy_volume_split.py   EnergyVolumeSplit
     symplectic.py            Symplectic (baseline)
-    discrete_gradient.py     ItohAbe, Gonzalez (baselines)
+    discrete_gradient.py     ItohAbe (baseline)
 examples/
     <test problem>.py        three simulation scripts
     plotting.py              error estimates and figures
@@ -250,11 +250,11 @@ MIT; see [LICENSE](LICENSE).
 - Feng, K. and Shang, Z., 1995. Volume-preserving algorithms for
   source-free dynamical systems. *Numerische Mathematik, 71*(4),
   pp.451-463.
+- Forest, E. and Ruth, R.D., 1990. Fourth-order symplectic
+  integration. *Physica D, 43*(1), pp.105-117.
 - Ge, Z. and Marsden, J.E., 1988. Lie-Poisson Hamilton-Jacobi
   theory and Lie-Poisson integrators. *Physics Letters A, 133*(3),
   pp.134-139.
-- Gonzalez, O., 1996. Time integration and discrete Hamiltonian
-  systems. *Journal of Nonlinear Science, 6*(5), pp.449-467.
 - Hairer, E., Lubich, C. and Wanner, G., 2006. *Geometric numerical
   integration: Structure-preserving algorithms for ordinary
   differential equations*. 2nd ed., Springer.
@@ -263,3 +263,5 @@ MIT; see [LICENSE](LICENSE).
   *Journal of Computational Physics, 76*(1), pp.85-102.
 - Tupper, P.F., 2006. A Non-Existence Result for Hamiltonian
   Integrators. *arXiv preprint math/0607641*.
+- Yoshida, H., 1990. Construction of higher order symplectic
+  integrators. *Physics Letters A, 150*(5-7), pp.262-268.

@@ -3,11 +3,11 @@ evolute: Energy- and VOLUme-preserving Time integration Engine.
 
 A Python package implementing one-step integrators for Hamiltonian
 systems, centred on EnergyVolumeSplit, which conserves energy and
-preserves phase-space volume exactly, and the momentum conjugate to a
-cyclic coordinate outside the isotropic pair. Symplectic and
-discrete gradient methods are included for comparison.
-EnergyVolumeSplit and Symplectic each provide a first-order method and
-its second-order symmetric composition.
+preserves phase-space volume exactly. Symplectic and discrete gradient
+methods are included for comparison.
+EnergyVolumeSplit and Symplectic each provide a first-order method, its
+second-order symmetric composition, and the fourth-order triple jump of
+that.
 
 Classes
 -------
@@ -23,26 +23,32 @@ Functions
 ---------
 canonical_J
     Canonical structure matrix on R^{2n}.
+integrate
+    Run a method over a number of steps and return the final state.
+evolve
+    The same, yielding the state after every step.
 
 Energy- and volume-preserving methods
 -------------------------------------
 EnergyVolumeSplit
-    Energy- and volume-preserving splitting, first or second order.
+    Energy- and volume-preserving splitting, first, second or fourth
+    order.
 
 Comparison methods
 ------------------
 Symplectic
-    Symplectic Euler, or its symmetric composition, Stormer-Verlet.
+    Symplectic Euler, its symmetric composition Stormer-Verlet, or the
+    fourth-order Forest-Ruth.
 ItohAbe
-    Itoh-Abe discrete gradient method, first order.
-Gonzalez
-    Gonzalez discrete gradient method, second order.
+    Itoh-Abe discrete gradient method, first, second or fourth order.
 '''
 
 from .system import HamiltonianSystem, canonical_J
-from .integrator import ImplicitMethod, PartitionedMethod
+from .integrator import (
+    ImplicitMethod, PartitionedMethod, evolve, integrate,
+)
 from .energy_volume_split import EnergyVolumeSplit
-from .discrete_gradient import Gonzalez, ItohAbe
+from .discrete_gradient import ItohAbe
 from .symplectic import Symplectic
 
 __all__ = [
@@ -50,8 +56,9 @@ __all__ = [
     'canonical_J',
     'ImplicitMethod',
     'PartitionedMethod',
+    'evolve',
+    'integrate',
     'EnergyVolumeSplit',
-    'Gonzalez',
     'ItohAbe',
     'Symplectic'
 ]

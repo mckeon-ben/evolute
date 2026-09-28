@@ -1,5 +1,5 @@
 '''
-Discrete gradient methods (comparison baselines).
+Discrete gradient method (comparison baseline).
 
 A discrete gradient gbar(z0, z1) satisfies
 
@@ -7,13 +7,11 @@ A discrete gradient gbar(z0, z1) satisfies
 
 so the method z1 = z0 + h J gbar(z0, z1) gives
 H(z1) - H(z0) = h gbar . J gbar = 0, since J is skew. Energy is
-therefore conserved exactly, up to solver tolerance, for any smooth H.
+therefore conserved exactly, up to solver tolerance, for any smooth H,
+and by any composition of such maps.
 
 References
 ----------
-Gonzalez, O., 1996. Time integration and discrete Hamiltonian
-systems. Journal of Nonlinear Science, 6(5), pp.449-467.
-
 Itoh, T. and Abe, K., 1988. Hamiltonian-conserving discrete
 canonical equations based on variational difference quotients.
 Journal of Computational Physics, 76(1), pp.85-102.
@@ -95,11 +93,23 @@ class ItohAbe(DiscreteGradientMethod):
         gbar_i = [H(w_i) - H(w_{i-1})] / (z1_i - z0_i),
 
     where w_i = (z1_1, ..., z1_i, z0_{i+1}, ..., z0_d), so w_0 = z0 and
-    w_d = z1, and the sum gbar . dz telescopes to H(z1) - H(z0). Not
-    symmetric, first order.
+    w_d = z1, and the sum gbar . dz telescopes to H(z1) - H(z0). Taking
+    the coordinates in the opposite order builds the same intermediate
+    states in reverse, which is the adjoint map Phi*_h = (Phi_{-h})^{-1}.
+    The base map is first order and not symmetric; Phi*_{h/2} o Phi_{h/2}
+    is symmetric and second order, and its triple jump is fourth order.
+    Energy is conserved exactly by every such composition, since each
+    factor conserves it.
 
     Parameters
     ----------
+    order : int, optional
+        1 (default) for the coordinate-increment map, 2 for the
+        symmetric composition with its adjoint, and 4 for the triple
+        jump of that.
+    reverse : bool, optional
+        Sweep the coordinates in reverse order, which gives the adjoint
+        map. Default False. Only for order 1.
     dz_min : float, optional
         Coordinate increments at or below this size use the i-th
         partial derivative at the midpoint of that coordinate step
@@ -109,21 +119,111 @@ class ItohAbe(DiscreteGradientMethod):
 
     Notes
     -----
-    - First-order accurate in h
+    - First-, second- or fourth-order accurate in h
     - Conserves energy exactly, to solver tolerance
     - Not volume-preserving in general
     '''
 
     name = 'Itoh-Abe'
-    order = 1
 
-    def __init__(self, dz_min=np.finfo(float).eps ** (1 / 3), **kwargs):
+    def __init__(self, order=1, reverse=False,
+                 dz_min=np.finfo(float).eps ** (1 / 3), **kwargs):
+        if order not in (1, 2, 4):
+            raise ValueError(f'order must be 1, 2 or 4, got {order!r}')
+        if reverse and order != 1:
+            raise ValueError('reverse is only for the first-order map')
+        self.order = order
+        self.reverse = reverse
         # Coordinate increments are often small (e.g. near turning
-        # points), where the quotient carries round-off ~ eps / |dz_i|
-        # and limits the solver residual, hence the energy error. The
-        # fallback's error grows like |dz_i|^3; eps^(1/3) ~ 6e-6 sits
-        # between the two in tests on the Kepler system.
+        # points), where the quotient carries round-off ~ eps / |dz_i|,
+        # which reaches the energy through the solver residual. The
+        # fallback replaces the quotient by the midpoint derivative, so
+        # the telescoping identity instead picks up an error ~ |dz_i|^3.
+        # The two balance near (h eps |H|)^(1/4), which is a few times
+        # 1e-6 for the examples, so eps^(1/3) ~ 6e-6 is about right. The
+        # best threshold is problem-dependent: over 2^18 steps it beats
+        # sqrt(eps) by 6x on the Kepler system and 2x on Henon-Heiles,
+        # and loses to it by 12x on the logarithmic potential, whose
+        # third derivative is large where the increments are small.
         super().__init__(dz_min=dz_min, **kwargs)
+        if order > 1:
+            # The two sweeps of the symmetric composition, each a
+            # first-order map in its own right.
+            self._sweep = ItohAbe(dz_min=dz_min, **kwargs)
+            self._adjoint = ItohAbe(reverse=True, dz_min=dz_min, **kwargs)
+
+    def step(self, system, z0, h, E=None):
+        '''
+        Advance the state by one step.
+
+        Parameters
+        ----------
+        system : HamiltonianSystem
+            System to integrate.
+        z0 : np.ndarray
+            Current state, shape (2n,).
+        h : float
+            Step size; may be negative.
+        E : float, optional
+            Ignored, as for any discrete gradient method.
+
+        Returns
+        -------
+        np.ndarray
+            New state z1, shape (2n,).
+
+        Raises
+        ------
+        RuntimeError
+            If the solver fails with a residual above 1e-10.
+        '''
+        return self._by_order(system, z0, h, E)
+
+    def _first(self, system, z0, h, E=None):
+        '''
+        Apply the coordinate-increment map, sweeping in this instance's
+        direction.
+
+        Parameters
+        ----------
+        system : HamiltonianSystem
+            System to integrate.
+        z0 : np.ndarray
+            Current state, shape (2n,).
+        h : float
+            Step size; may be negative.
+        E : float, optional
+            Ignored, as for any discrete gradient method.
+
+        Returns
+        -------
+        np.ndarray
+            New state z1, shape (2n,).
+        '''
+        return super().step(system, z0, h)
+
+    def _symmetric(self, system, z0, h, E=None):
+        '''
+        Apply the symmetric composition Phi*_{h/2} o Phi_{h/2}.
+
+        Parameters
+        ----------
+        system : HamiltonianSystem
+            System to integrate.
+        z0 : np.ndarray
+            Current state, shape (2n,).
+        h : float
+            Step size; may be negative.
+        E : float, optional
+            Ignored; present so the map can be composed.
+
+        Returns
+        -------
+        np.ndarray
+            New state z1, shape (2n,).
+        '''
+        z = self._sweep.step(system, z0, 0.5 * h)
+        return self._adjoint.step(system, z, 0.5 * h)
 
     def discrete_gradient(self, system, z0, z1):
         '''
@@ -148,7 +248,7 @@ class ItohAbe(DiscreteGradientMethod):
         gbar = np.empty(d)
         w = z0.copy()
         H_prev = system.H(w)
-        for i in range(d):
+        for i in reversed(range(d)) if self.reverse else range(d):
             dzi = z1[i] - z0[i]
             if abs(dzi) <= self.dz_min:
                 w[i] = 0.5 * (z0[i] + z1[i])
@@ -161,58 +261,3 @@ class ItohAbe(DiscreteGradientMethod):
                 gbar[i] = (H_next - H_prev) / dzi
                 H_prev = H_next
         return gbar
-
-
-class Gonzalez(DiscreteGradientMethod):
-    '''
-    Gonzalez (midpoint) discrete gradient method.
-
-    The discrete gradient is
-
-        gbar = grad H(zm) + [H(z1) - H(z0) - grad H(zm) . dz] dz / |dz|^2,
-
-    with zm = (z0 + z1) / 2 and dz = z1 - z0. It is unchanged when z0
-    and z1 are swapped, so the method is symmetric; second order.
-
-    Parameters
-    ----------
-    dz_min : float, optional
-        Steps with |dz| at or below this size use grad H(zm) alone.
-        Default 1e-12.
-    **kwargs
-        Passed to ImplicitMethod (xtol).
-
-    Notes
-    -----
-    - Second-order accurate in h; symmetric
-    - Conserves energy exactly, to solver tolerance
-    - Not volume-preserving in general
-    '''
-
-    name = 'Gonzalez'
-    order = 2
-
-    def discrete_gradient(self, system, z0, z1):
-        '''
-        Evaluate the Gonzalez discrete gradient.
-
-        Parameters
-        ----------
-        system : HamiltonianSystem
-            System supplying H and grad H.
-        z0, z1 : np.ndarray
-            Endpoints of the step, each shape (2n,).
-
-        Returns
-        -------
-        np.ndarray
-            gbar(z0, z1), shape (2n,).
-        '''
-        dz = z1 - z0
-        g = system.grad_H(0.5 * (z0 + z1))
-        dz2 = dz @ dz
-        if dz2 <= self.dz_min ** 2:
-            # The correction is O(|dz|^2); dropping it is harmless.
-            return g
-        defect = system.H(z1) - system.H(z0) - g @ dz
-        return g + (defect / dz2) * dz

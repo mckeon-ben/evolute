@@ -3,7 +3,10 @@ Axisymmetric logarithmic potential.
 
 Integrates every method over a fixed time at a sequence of step counts,
 and over a long run at a single step size, then writes the final states
-and the energy and angular momentum histories to a JSON data file.
+and the energy histories to a JSON data file.
+
+Cylindrical coordinates, so the kinetic term depends on R and the system
+is not separable.
 '''
 
 import json
@@ -13,7 +16,8 @@ import time
 import numpy as np
 
 from evolute import (
-    EnergyVolumeSplit, Gonzalez, HamiltonianSystem, ItohAbe, Symplectic,
+    EnergyVolumeSplit, evolve, HamiltonianSystem, integrate, ItohAbe,
+    Symplectic,
 )
 
 
@@ -40,9 +44,8 @@ LAUNCH_ANGLE = np.pi / 4.0
 T = 16.0
 N_LIST = [16384, 32768, 65536, 131072, 262144, 524288]
 
-# Long run for the energy and angular momentum histories, at the
-# coarsest step of the convergence study, sampled to keep the file
-# small.
+# Long run for the energy history, at the coarsest step of the
+# convergence study, sampled to keep the file small.
 ENERGY_H = T / N_LIST[0]
 ENERGY_STEPS = 32768
 # The same number of samples in every example, whatever the run's
@@ -52,15 +55,17 @@ ENERGY_SAMPLE = ENERGY_STEPS // ENERGY_SAMPLES
 assert ENERGY_STEPS % ENERGY_SAMPLES == 0, \
     'ENERGY_STEPS must be a multiple of ENERGY_SAMPLES'
 
-# Display name -> method. The class name is stored in the data file, so
-# the two energy-volume split variants stay distinguishable.
+# Display name -> method, grouped by class and ordered within it. The
+# class name is stored in the data file, so the variants of a class stay
+# distinguishable; the plot gives each class a colour and a marker, and
+# each order a line style.
 METHODS = {
-    'Symplectic Euler': Symplectic(symmetric=False),
-    'Störmer-Verlet': Symplectic(),
-    'Itoh-Abe': ItohAbe(),
-    'Gonzalez': Gonzalez(),
-    'Energy-volume split (1)': EnergyVolumeSplit(symmetric=False),
-    'Energy-volume split (2)': EnergyVolumeSplit(),
+    'Symplectic Euler': Symplectic(order=1),
+    'Störmer-Verlet': Symplectic(order=2),
+    'Itoh-Abe (1)': ItohAbe(order=1),
+    'Itoh-Abe (2)': ItohAbe(order=2),
+    'Energy-volume split (1)': EnergyVolumeSplit(order=1),
+    'Energy-volume split (2)': EnergyVolumeSplit(order=2),
 }
 
 
@@ -70,7 +75,7 @@ def logarithmic(rc=CORE_RADIUS, qf=FLATTENING):
 
     State (R, z, phi, pR, pz, Lz); the pair (pR, pz) is isotropic, and
     T = Lz^2 / (2 R^2) depends on R, so the system is not separable.
-    phi is cyclic. Supplies the angular momentum Lz as an invariant.
+    phi is cyclic.
 
     Parameters
     ----------
@@ -101,11 +106,7 @@ def logarithmic(rc=CORE_RADIUS, qf=FLATTENING):
         L, R = p_rest[0], q[0]
         return np.array([-L * L / R ** 3, 0.0, 0.0]), np.array([L / R ** 2])
 
-    def invariants(q, p):
-        return {'angular_momentum': p[2]}
-
-    return HamiltonianSystem(3, V, grad_V, T, grad_T,
-                             invariants=invariants, name='Logarithmic')
+    return HamiltonianSystem(3, V, grad_V, T, grad_T, name='Logarithmic')
 
 
 def to_cartesian(z):
@@ -186,23 +187,19 @@ def final_state(method, system, z0, T, N):
     np.ndarray
         Final state, shape (2n,).
     '''
-    z, h = np.array(z0, dtype=float), T / N
-    for _ in range(N):
-        z = method.step(system, z, h)
-    return z
+    return integrate(method, system, z0, T / N, N)
 
 
-def histories(method, system, z0, h, steps, sample):
+def energy_history(method, system, z0, h, steps, sample):
     '''
-    Energy and angular momentum errors along a long run, sampled.
+    Energy error of one method along a long run, sampled.
 
     Parameters
     ----------
     method : OneStepMethod
         Method to run.
     system : HamiltonianSystem
-        System to integrate; must supply 'angular_momentum' as an
-        invariant.
+        System to integrate.
     z0 : np.ndarray
         Initial state, shape (2n,).
     h : float
@@ -216,22 +213,15 @@ def histories(method, system, z0, h, steps, sample):
     -------
     t : np.ndarray
         Sample times.
-    energy : np.ndarray
+    err : np.ndarray
         Energy error at those times.
-    momentum : np.ndarray
-        Absolute angular momentum error at those times.
     '''
-    z = np.array(z0, dtype=float)
-    L0 = system.invariants(z)['angular_momentum']
-    t, energy, momentum = [], [], []
-    for k in range(1, steps + 1):
-        z = method.step(system, z, h)
+    t, err = [], []
+    for k, z in enumerate(evolve(method, system, z0, h, steps), start=1):
         if k % sample == 0:
             t.append(k * h)
-            energy.append(system.energy_error(z0, z))
-            momentum.append(
-                abs(system.invariants(z)['angular_momentum'] - L0))
-    return np.array(t), np.array(energy), np.array(momentum)
+            err.append(system.energy_error(z0, z))
+    return np.array(t), np.array(err)
 
 
 def main(filename=DATA_FILE):
@@ -261,14 +251,13 @@ def main(filename=DATA_FILE):
         t0 = time.perf_counter()
         states = [to_cartesian(final_state(method, system, z0, T, N))
                   for N in N_LIST]
-        t, energy, momentum = histories(method, system, z0, ENERGY_H,
-                                        ENERGY_STEPS, ENERGY_SAMPLE)
+        t, err = energy_history(method, system, z0, ENERGY_H,
+                                ENERGY_STEPS, ENERGY_SAMPLE)
         methods[name] = {
             'class': type(method).__name__,
             'order': method.order,
             'final_state': [s.tolist() for s in states],
-            'energy_error': energy.tolist(),
-            'momentum_error': momentum.tolist(),
+            'energy_error': err.tolist(),
         }
         print(f'{name:<26s} {type(method).__name__:<20s} {method.order:>5d} '
               f'{time.perf_counter() - t0:6.1f}s', flush=True)
@@ -285,7 +274,6 @@ def main(filename=DATA_FILE):
             'energy_h': ENERGY_H, 'energy_steps': ENERGY_STEPS,
         },
         'initial_state': z0.tolist(),
-        'momentum_symbol': 'L_z',
         'dt': [T / N for N in N_LIST],
         'reference': {'kind': 'successive', 'state': None},
         'energy_time': t.tolist(),

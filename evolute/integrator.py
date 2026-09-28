@@ -1,10 +1,14 @@
 '''
-Base classes for one-step methods.
+Base classes for one-step methods, and the drivers that run them.
 
 Every method maps a state z0 to z1 = Phi_h(z0) through step(system,
-z0, h). PartitionedMethod supplies the kick and drift substeps used by
-the symplectic methods; ImplicitMethod solves a residual equation for
+z0, h, E). PartitionedMethod supplies the kick and drift substeps used
+by the symplectic methods; ImplicitMethod solves a residual equation for
 z1.
+
+The target energy E is an optional argument of every step, used by an
+energy-conserving method and ignored by the others, so that one driver
+runs them all. The drivers are integrate and evolve.
 '''
 
 from abc import ABC, abstractmethod
@@ -12,12 +16,23 @@ from abc import ABC, abstractmethod
 import numpy as np
 from scipy.optimize import fixed_point, root
 
+# Yoshida's coefficients. A symmetric second-order map applied at these
+# three step lengths is fourth order: summing to one makes the
+# composition consistent, and 2 g1^3 + g2^3 = 0 cancels the leading
+# error term, which is odd in h for a symmetric map.
+_CUBE_ROOT_2 = 2.0 ** (1 / 3)
+TRIPLE_JUMP = (1.0 / (2.0 - _CUBE_ROOT_2),
+               -_CUBE_ROOT_2 / (2.0 - _CUBE_ROOT_2),
+               1.0 / (2.0 - _CUBE_ROOT_2))
+
 
 class OneStepMethod(ABC):
     '''
     One-step map z0 -> Phi_h(z0).
 
-    Subclasses set the attributes below and implement step.
+    Subclasses set the attributes below and implement step. One that
+    comes in several orders implements the first-order map _first and
+    the symmetric map _symmetric, and routes step through _by_order.
 
     Attributes
     ----------
@@ -41,7 +56,7 @@ class OneStepMethod(ABC):
     '''
 
     @abstractmethod
-    def step(self, system, z0, h):
+    def step(self, system, z0, h, E=None):
         '''
         Advance the state by one step.
 
@@ -53,12 +68,81 @@ class OneStepMethod(ABC):
             Current state, shape (2n,).
         h : float
             Step size; may be negative.
+        E : float, optional
+            Target energy for an energy-conserving method. By default
+            it is taken from z0; ignored by methods that do not use it.
 
         Returns
         -------
         np.ndarray
             New state z1, shape (2n,).
         '''
+
+    def _by_order(self, system, z0, h, E):
+        '''
+        Apply the map of this method's order.
+
+        Order 1 is _first, order 2 the symmetric composition _symmetric,
+        and order 4 the triple jump of that.
+
+        Parameters
+        ----------
+        system : HamiltonianSystem
+            System to integrate.
+        z0 : np.ndarray
+            Current state, shape (2n,).
+        h : float
+            Step size; may be negative.
+        E : float or None
+            Target energy, passed on unchanged.
+
+        Returns
+        -------
+        np.ndarray
+            New state z1, shape (2n,).
+        '''
+        if self.order == 4:
+            return self._compose(self._symmetric, system, z0, h, E)
+        if self.order == 2:
+            return self._symmetric(system, z0, h, E)
+        return self._first(system, z0, h, E)
+
+    @staticmethod
+    def _compose(symmetric, system, z0, h, E, coefficients=TRIPLE_JUMP):
+        '''
+        Apply a symmetric map at a sequence of scaled step lengths.
+
+        Structure is inherited: a composition of maps that each conserve
+        energy, preserve volume or are symplectic does the same, since
+        every factor does, at any step length and either sign. The same
+        energy is passed to every factor, so an energy-conserving method
+        holds one target across the composition.
+
+        Parameters
+        ----------
+        symmetric : callable
+            Symmetric map, called as symmetric(system, z, h, E).
+        system : HamiltonianSystem
+            System to integrate.
+        z0 : np.ndarray
+            Current state, shape (2n,).
+        h : float
+            Step size of the composition.
+        E : float or None
+            Target energy, passed to every factor.
+        coefficients : sequence of float, optional
+            Step lengths as fractions of h. Default TRIPLE_JUMP, which
+            lifts a symmetric second-order map to fourth order.
+
+        Returns
+        -------
+        np.ndarray
+            New state z1, shape (2n,).
+        '''
+        z = z0
+        for c in coefficients:
+            z = symmetric(system, z, c * h, E)
+        return z
 
     def _fixed_point(self, g, x0):
         '''
@@ -246,7 +330,7 @@ class ImplicitMethod(OneStepMethod):
             F(z0, z1), shape (2n,).
         '''
 
-    def step(self, system, z0, h):
+    def step(self, system, z0, h, E=None):
         '''
         Advance the state by one step by solving F(z0, z1) = 0.
 
@@ -258,6 +342,10 @@ class ImplicitMethod(OneStepMethod):
             Current state, shape (2n,).
         h : float
             Step size; may be negative.
+        E : float, optional
+            Ignored. A discrete gradient conserves energy through the
+            identity g . (z1 - z0) = H(z1) - H(z0), which refers to the
+            previous state and has no slot for a supplied energy.
 
         Returns
         -------
@@ -278,3 +366,70 @@ class ImplicitMethod(OneStepMethod):
             raise RuntimeError(
                 f'{self.name} solver failed to converge: {sol.message}')
         return sol.x
+
+
+def evolve(method, system, z0, h, steps):
+    '''
+    Advance a state, yielding it after every step.
+
+    The target energy is read once from z0 and passed to every step, as
+    integrate describes.
+
+    Parameters
+    ----------
+    method : OneStepMethod
+        Method to run.
+    system : HamiltonianSystem
+        System to integrate.
+    z0 : np.ndarray
+        Initial state, shape (2n,).
+    h : float
+        Step size; may be negative.
+    steps : int
+        Number of steps.
+
+    Yields
+    ------
+    np.ndarray
+        The state after each step, shape (2n,).
+    '''
+    z = np.array(z0, dtype=float)
+    E = system.H(z)
+    for _ in range(steps):
+        z = method.step(system, z, h, E)
+        yield z
+
+
+def integrate(method, system, z0, h, steps):
+    '''
+    Run a method over a number of steps and return the final state.
+
+    The energy of z0 is the target of every step, rather than that of
+    the state each step starts from. The two agree in exact arithmetic.
+    In floating point, recomputing the target would make the rounding of
+    one step the target of the next, and the energy error of an
+    energy-conserving method would grow like the square root of the
+    number of steps.
+
+    Parameters
+    ----------
+    method : OneStepMethod
+        Method to run.
+    system : HamiltonianSystem
+        System to integrate.
+    z0 : np.ndarray
+        Initial state, shape (2n,).
+    h : float
+        Step size; may be negative.
+    steps : int
+        Number of steps.
+
+    Returns
+    -------
+    np.ndarray
+        Final state, shape (2n,).
+    '''
+    z = np.array(z0, dtype=float)
+    for state in evolve(method, system, z0, h, steps):
+        z = state
+    return z
