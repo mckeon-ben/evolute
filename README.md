@@ -153,13 +153,6 @@ first, and *M*\* applies the drift first. For `ItohAbe`, *M* sweeps the
 coordinates in increasing order and *M*\* sweeps them in reverse,
 available on its own as `ItohAbe(reverse=True)`.
 
-### Writing new methods
-
-The base classes `PartitionedMethod` and `ImplicitMethod` are exported
-for writing new methods. `PartitionedMethod` subclasses inherit kick
-and drift substeps, explicit or implicit; `ImplicitMethod` subclasses
-define a residual `F(z0, z1)` and inherit a SciPy solve.
-
 ## How `EnergyVolumeSplit` works
 
 One step is the conjugation `Phi = Psi^{-1} o M o Psi`.

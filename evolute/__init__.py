@@ -14,15 +14,9 @@ Classes
 HamiltonianSystem
     Hamiltonian system built from a potential, an optional kinetic
     energy, and their gradients.
-PartitionedMethod
-    Base class for methods built from kick and drift substeps.
-ImplicitMethod
-    Base class for methods defined by a residual equation.
 
 Functions
 ---------
-canonical_J
-    Canonical structure matrix on R^{2n}.
 integrate
     Run a method over a number of steps and return the final state.
 evolve
@@ -43,19 +37,14 @@ ItohAbe
     Itoh-Abe discrete gradient method, first, second or fourth order.
 '''
 
-from .system import HamiltonianSystem, canonical_J
-from .integrator import (
-    ImplicitMethod, PartitionedMethod, evolve, integrate,
-)
+from .system import HamiltonianSystem
+from .integrator import evolve, integrate
 from .energy_volume_split import EnergyVolumeSplit
 from .discrete_gradient import ItohAbe
 from .symplectic import Symplectic
 
 __all__ = [
     'HamiltonianSystem',
-    'canonical_J',
-    'ImplicitMethod',
-    'PartitionedMethod',
     'evolve',
     'integrate',
     'EnergyVolumeSplit',
