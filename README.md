@@ -118,25 +118,42 @@ every step, as in the [quick start](#quick-start).
 | Itoh–Abe            | `ItohAbe`           | 1, 2, 4 | exact  | no     |
 
 `EnergyVolumeSplit` and `ItohAbe` are implicit; the `Symplectic`
-methods are explicit for a separable system.
-
-Each class has a first-order map *M*, and its higher orders are
-compositions of that map. Order 2 is `M*_{h/2} o M_{h/2}`, half a step
-of *M* followed by half a step of its adjoint *M*\*, which is symmetric
-and therefore of even order. Order 4 composes that symmetric map three
-times, at step lengths chosen to ensure third-order errors vanish. The
-construction needs a symmetric base map, which is why it builds on
-order 2 and not on *M*, and one of its three step lengths is negative,
-so a fourth-order step runs partly backwards in time.
+methods are explicit for a separable system, and otherwise take the
+implicit forms of Hairer, Lubich and Wanner, solved by fixed-point
+iteration.
 
 "Exact" means up to round-off, and for the implicit methods up to the
 solver tolerance `xtol`. The symplectic methods do not conserve energy,
 but for these problems their energy error stays bounded rather than
 drifting.
 
-`ItohAbe` takes `order` in the same way. Its first-order map sweeps the
-coordinates in increasing order; the adjoint, which sweeps them in
-reverse, is `ItohAbe(reverse=True)`, and order 2 composes the two.
+### Orders
+
+Each class takes `order`, which is 1, 2 or 4. It defaults to 2 for
+`EnergyVolumeSplit` and `Symplectic`, and to 1 for `ItohAbe`, whose
+first-order map is the classical method. At orders 1, 2 and 4 the
+`Symplectic` methods are symplectic Euler, Störmer–Verlet and
+Forest–Ruth.
+
+Higher orders are compositions of a class's first-order map *M*.
+Order 2 is `M*_{h/2} o M_{h/2}`, half a step of *M* followed by half a
+step of its adjoint *M*\*, which is symmetric and therefore of even
+order. Order 4 composes that symmetric map three times, at step
+lengths chosen to ensure third-order errors vanish. The construction
+needs a symmetric base map, which is why it builds on order 2 and not
+on *M*, and one of its three step lengths is negative, so a
+fourth-order step runs partly backwards in time.
+
+Energy, volume and symplecticity are inherited by such a composition,
+since every factor has them at any step length and either sign; only
+the `Symplectic` methods are symplectic.
+
+For `Symplectic`, *M* is symplectic Euler, which applies the kick
+first, and *M*\* applies the drift first. For `ItohAbe`, *M* sweeps the
+coordinates in increasing order and *M*\* sweeps them in reverse,
+available on its own as `ItohAbe(reverse=True)`.
+
+### Writing new methods
 
 The base classes `PartitionedMethod` and `ImplicitMethod` are exported
 for writing new methods. `PartitionedMethod` subclasses inherit kick
