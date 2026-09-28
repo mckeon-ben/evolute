@@ -192,8 +192,9 @@ gives the substeps in full.
   `rho = sqrt(p1^2 + p2^2)`.
 - The implicit solves need a small enough step. A solve that does not
   converge raises `RuntimeError`: the scalar equations of
-  `EnergyVolumeSplit` always, and the fixed-point iterations of
-  `EnergyVolumeSplit` and `Symplectic` for a non-separable system.
+  `EnergyVolumeSplit`, the root solve of `ItohAbe`, and, for a
+  non-separable system, the fixed-point iterations of
+  `EnergyVolumeSplit` and `Symplectic`.
 - The momentum pair is fixed for the whole run. Switching pairs
   adaptively to avoid the singular set would break volume
   preservation.
