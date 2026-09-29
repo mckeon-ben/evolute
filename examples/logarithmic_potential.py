@@ -243,9 +243,9 @@ def main(filename=DATA_FILE):
     z0 = launch()
 
     print('\n' + EXPERIMENT)
-    print('-' * 72)
-    print(f'{"Method":<26s} {"Class":<20s} {"Order":>5s} {"Time":>7s}')
-    print('-' * 72)
+    print('-' * 67)
+    print(f'{"Method":<30s} {"Class":<20s} {"Order":>5s} {"Time":>7s}')
+    print('-' * 67)
     methods = {}
     for name, method in METHODS.items():
         t0 = time.perf_counter()
@@ -259,7 +259,7 @@ def main(filename=DATA_FILE):
             'final_state': [s.tolist() for s in states],
             'energy_error': err.tolist(),
         }
-        print(f'{name:<26s} {type(method).__name__:<20s} {method.order:>5d} '
+        print(f'{name:<30s} {type(method).__name__:<20s} {method.order:>5d} '
               f'{time.perf_counter() - t0:6.1f}s', flush=True)
 
     record = {
