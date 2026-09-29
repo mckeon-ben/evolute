@@ -52,7 +52,7 @@ class OneStepMethod(ABC):
     >>> method = EnergyVolumeSplit()
     >>> z = method.step(system, np.array([1., 0., 0., 1.]), 0.1)
     >>> method.name, method.order
-    ('Energy-volume split', 2)
+    ('Symmetric energy-volume split', 2)
     '''
 
     @abstractmethod

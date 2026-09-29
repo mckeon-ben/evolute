@@ -2,7 +2,7 @@
 evolute: Energy- and VOLUme-preserving Time integration Engine.
 
 A Python package implementing one-step integrators for Hamiltonian
-systems, centred on EnergyVolumeSplit, which conserves energy and
+systems, centered on EnergyVolumeSplit, which conserves energy and
 preserves phase-space volume exactly. Symplectic and discrete gradient
 methods are included for comparison.
 EnergyVolumeSplit and Symplectic each provide a first-order method, its
@@ -34,7 +34,8 @@ Symplectic
     Symplectic Euler, its symmetric composition Stormer-Verlet, or the
     fourth-order Forest-Ruth.
 ItohAbe
-    Itoh-Abe discrete gradient method, first, second or fourth order.
+    Itoh-Abe discrete gradient method, its symmetrized form, or the
+    fourth-order triple jump of that.
 '''
 
 from .system import HamiltonianSystem

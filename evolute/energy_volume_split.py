@@ -81,7 +81,9 @@ class EnergyVolumeSplit(OneStepMethod):
         if order not in (1, 2, 4):
             raise ValueError(f'order must be 1, 2 or 4, got {order!r}')
         self.order = order
-        self.name = 'Energy-volume split'
+        self.name = {1: 'Energy-volume split',
+                     2: 'Symmetric energy-volume split',
+                     4: 'Energy-volume split triple jump'}[order]
         self.xtol = xtol
         self.maxiter = maxiter
 

@@ -20,7 +20,7 @@ problems.
 - [Things to know](#things-to-know)
 - [Examples](#examples)
 - [Package layout](#package-layout)
-- [Licence](#licence)
+- [License](#license)
 - [References](#references)
 
 ## Installation
@@ -135,23 +135,30 @@ first-order map is the classical method. At orders 1, 2 and 4 the
 `Symplectic` methods are symplectic Euler, Störmer–Verlet and
 Forest–Ruth.
 
-Higher orders are compositions of a class's first-order map *M*.
-Order 2 is `M*_{h/2} o M_{h/2}`, half a step of *M* followed by half a
-step of its adjoint *M*\*, which is symmetric and therefore of even
-order. Order 4 composes that symmetric map three times, at step
-lengths chosen to ensure third-order errors vanish. The construction
-needs a symmetric base map, which is why it builds on order 2 and not
-on *M*, and one of its three step lengths is negative, so a
-fourth-order step runs partly backwards in time.
+`EnergyVolumeSplit` and `Symplectic` reach their higher orders by
+composing the first-order map *M*. Order 2 is `M*_{h/2} o M_{h/2}`,
+half a step of *M* followed by half a step of its adjoint *M*\*, which
+is symmetric and therefore of even order. Order 4 composes that
+symmetric map three times, at step lengths chosen to ensure
+third-order errors vanish. The construction needs a symmetric base
+map, which is why it builds on order 2 and not on *M*, and one of its
+three step lengths is negative, so a fourth-order step runs partly
+backwards in time.
 
 Energy, volume and symplecticity are inherited by such a composition,
 since every factor has them at any step length and either sign; only
 the `Symplectic` methods are symplectic.
 
 For `Symplectic`, *M* is symplectic Euler, which applies the kick
-first, and *M*\* applies the drift first. For `ItohAbe`, *M* sweeps the
-coordinates in increasing order and *M*\* sweeps them in reverse,
-available on its own as `ItohAbe(reverse=True)`.
+first, and *M*\* applies the drift first.
+
+`ItohAbe` reaches order 2 differently. Its first-order map sweeps the
+coordinates in increasing order; sweeping them in reverse gives the
+adjoint, available on its own as `ItohAbe(reverse=True)`. Rather than
+composing the two maps, order 2 averages their discrete gradients,
+which is symmetric and so second order at one solve per step: the
+symmetrized Itoh–Abe gradient of Eidnes (2022). Order 4 is the triple
+jump of that symmetric map.
 
 ## How `EnergyVolumeSplit` works
 
@@ -249,12 +256,14 @@ examples/
     plotting.py              error estimates and figures
 ```
 
-## Licence
+## License
 
 MIT; see [LICENSE](LICENSE).
 
 ## References
 
+- Eidnes, S., 2022. Order theory for discrete gradient methods.
+  *BIT Numerical Mathematics, 62*(4), pp.1207-1255.
 - Feng, K. and Shang, Z., 1995. Volume-preserving algorithms for
   source-free dynamical systems. *Numerische Mathematik, 71*(4),
   pp.451-463.

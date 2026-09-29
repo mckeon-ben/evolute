@@ -57,15 +57,15 @@ assert ENERGY_STEPS % ENERGY_SAMPLES == 0, \
 
 # Display name -> method, grouped by class and ordered within it. The
 # class name is stored in the data file, so the variants of a class stay
-# distinguishable; the plot gives each class a colour and a marker, and
+# distinguishable; the plot gives each class a color and a marker, and
 # each order a line style.
 METHODS = {
     'Symplectic Euler': Symplectic(order=1),
     'Störmer-Verlet': Symplectic(order=2),
-    'Itoh-Abe (1)': ItohAbe(order=1),
-    'Itoh-Abe (2)': ItohAbe(order=2),
-    'Energy-volume split (1)': EnergyVolumeSplit(order=1),
-    'Energy-volume split (2)': EnergyVolumeSplit(order=2),
+    'Itoh-Abe': ItohAbe(order=1),
+    'Symmetrized Itoh-Abe': ItohAbe(order=2),
+    'Energy-volume split': EnergyVolumeSplit(order=1),
+    'Symmetric energy-volume split': EnergyVolumeSplit(order=2),
 }
 
 

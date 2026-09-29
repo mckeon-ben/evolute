@@ -69,7 +69,7 @@ FIGURE_SUFFIX = '.pdf'
 # --print. The figure is drawn at the text width of the SIAM class,
 # 5.125 in, so no text or line is scaled down: lines of at least 1 pt,
 # all text in black, and vector PDF. SIAM prints in black and white, so
-# methods are told apart by marker and dash as well as colour. The text
+# methods are told apart by marker and dash as well as color. The text
 # is in Computer Modern, the typeface of the SIAM class, rather than the
 # Helvetica of the screen figures.
 PRINT_WIDTH = 5.125
@@ -133,7 +133,7 @@ MARKERS = {
     'EnergyVolumeSplit': 'D',
 }
 
-# Okabe-Ito, the standard colourblind-safe qualitative palette.
+# Okabe-Ito, the standard colorblind-safe qualitative palette.
 PALETTE = [
     '#0072B2',  # blue
     '#D55E00',  # vermillion
@@ -290,9 +290,9 @@ def load(filename):
 
 def assign_styles(record):
     '''
-    Line style, marker and colour for every method.
+    Line style, marker and color for every method.
 
-    Methods of the same class share a colour and a marker, and differ
+    Methods of the same class share a color and a marker, and differ
     by line style, which follows the order through LINE_STYLES. The
     marker keeps the classes apart in black and white.
 
@@ -306,14 +306,14 @@ def assign_styles(record):
     dict
         Display name -> dict of matplotlib line properties.
     '''
-    colours, markers, styles = {}, {}, {}
+    colors, markers, styles = {}, {}, {}
     for name in record['method_order']:
         cls = record['methods'][name]['class']
-        colours.setdefault(cls, PALETTE[len(colours) % len(PALETTE)])
+        colors.setdefault(cls, PALETTE[len(colors) % len(PALETTE)])
         markers.setdefault(cls, MARKERS.get(
             cls, FALLBACK_MARKERS[len(markers) % len(FALLBACK_MARKERS)]))
         styles[name] = {
-            'color': colours[cls],
+            'color': colors[cls],
             'linestyle': LINE_STYLES.get(record['methods'][name]['order'],
                                          '-'),
             'marker': markers[cls],
@@ -347,7 +347,7 @@ def place_label(ax, text, x, y, renderer, side='below'):
         Renderer used to measure the label.
     side : {'below', 'above'}, optional
         Side of the guide tried first; the one away from the data, so
-        the label cannot be read as labelling a curve. Default 'below'.
+        the label cannot be read as labeling a curve. Default 'below'.
 
     Returns
     -------
@@ -448,7 +448,7 @@ def differences(states, dt, order, reference=None):
     return h, err, orders
 
 
-def analyse(record):
+def analyze(record):
     '''
     Errors and observed orders for every method in a record.
 
@@ -484,7 +484,7 @@ def print_tables(record, panels):
     record : dict
         Record read from a data file.
     panels : dict
-        Per-method results, as returned by analyse.
+        Per-method results, as returned by analyze.
     '''
     kind = record['reference']['kind']
     width = max(26, max(len(name) for name in record['method_order']))
@@ -509,7 +509,7 @@ def plot(record, panels, filename, layout='screen'):
     record : dict
         Record read from a data file.
     panels : dict
-        Per-method results, as returned by analyse.
+        Per-method results, as returned by analyze.
     filename : str or Path
         Output figure path.
     layout : {'screen', 'print'}, optional
@@ -532,7 +532,7 @@ def plot(record, panels, filename, layout='screen'):
     ax_e, ax_c = axes
 
     for name in record['method_order']:
-        # The histories are told apart by colour, line style and level;
+        # The histories are told apart by color, line style and level;
         # markers on traces this dense only add clutter, so they are
         # left to the convergence panel, whose points are the data.
         style = dict(styles[name], marker='None')
@@ -593,7 +593,7 @@ def plot(record, panels, filename, layout='screen'):
         ax_c.legend(loc='center left', bbox_to_anchor=(1.02, 0.5))
         fig.suptitle(record['experiment'])
         fig.tight_layout()
-    # The guides are labelled once the layout is final, where no line or
+    # The guides are labeled once the layout is final, where no line or
     # marker is in the way.
     renderer = fig.canvas.get_renderer()
     for text, guide, side in guides:
@@ -658,7 +658,7 @@ def main():
             failed += 1
             continue
         print(f'\n{path}')
-        panels = analyse(record)
+        panels = analyze(record)
         print_tables(record, panels)
         plt.close(plot(record, panels, output, layout))
     if failed:
