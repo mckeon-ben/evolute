@@ -11,8 +11,9 @@ File contract
 Required: 'schema', 'experiment', 'dt', 'reference', 'energy_time',
 'method_order' and 'methods'. 'reference' carries 'kind' and 'state',
 the exact final state or None. 'methods' maps each display name to
-'class', 'order', 'final_state' -- one final state per entry of dt --
-and 'energy_error', sampled at the times in 'energy_time'. 'parameters'
+'class', 'order', 'time' -- the seconds that method took -- and
+'final_state', one final state per entry of dt, with 'energy_error'
+sampled at the times in 'energy_time'. 'parameters'
 must carry 'T', the final time of the convergence study, and
 'energy_h', the step of the long run.
 

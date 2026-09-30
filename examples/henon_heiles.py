@@ -177,14 +177,16 @@ def main(filename=DATA_FILE):
         states = [final_state(method, system, z0, T, N) for N in N_LIST]
         t, err = energy_history(method, system, z0, ENERGY_H,
                                 ENERGY_STEPS, ENERGY_SAMPLE)
+        elapsed = time.perf_counter() - t0
         methods[name] = {
             'class': type(method).__name__,
             'order': method.order,
+            'time': round(elapsed, 3),
             'final_state': [s.tolist() for s in states],
             'energy_error': err.tolist(),
         }
         print(f'{name:<30s} {type(method).__name__:<20s} {method.order:>5d} '
-              f'{time.perf_counter() - t0:6.1f}s', flush=True)
+              f'{elapsed:6.1f}s', flush=True)
 
     record = {
         'schema': 1,
