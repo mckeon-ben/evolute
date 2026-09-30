@@ -507,30 +507,63 @@ def analyze(record):
     return out
 
 
+def step_label(h):
+    '''
+    Label a step size, as a power of two where it is one.
+
+    The step counts are powers of two, so the labels match the ticks of
+    the step-size axis and stay short.
+
+    Parameters
+    ----------
+    h : float
+        Step size.
+
+    Returns
+    -------
+    str
+        Label such as '2^-9', or two significant figures otherwise.
+    '''
+    k = np.log2(h)
+    return f'2^{round(k):d}' if abs(k - round(k)) < 1e-9 else f'{h:.2e}'
+
+
 def print_tables(record, panels):
     '''
-    Print the maximum errors and the observed order of each method.
+    Print the estimated errors and observed orders for every family.
 
     Parameters
     ----------
     record : dict
-        Record read from a data file.
+        Record read from a data file; supplies the heading.
     panels : dict
         Per-method results, as returned by analyze.
     '''
     kind = record['reference']['kind']
-    width = max(26, max(len(name) for name in panels))
-    rule = '-' * (width + 46)
     print(f'\n{record["experiment"]}  (reference: {kind})')
-    print(rule)
-    print(f'{"Method":<{width}s} {"max energy error":>17s}'
-          f' {"order":>7s} {"finest error":>14s}')
-    print(rule)
     for family in record['families']:
-        for name in family['method_order']:
+        names = family['method_order']
+        width = max(len(name) for name in names)
+        h = panels[names[0]]['h']
+        header = (f'{"Method":>{width}} |'
+                  + ''.join(f'{step_label(x):>9}' for x in h))
+        print('#' * len(header))
+        print(f'# {family["label"]} methods')
+        print('#' * len(header))
+        print(header)
+        for name in names:
             p = panels[name]
-            print(f'{name:<{width}s} {p["energy"].max():>17.2e}'
-                  f' {p["orders"][-1]:>7.2f} {p["err"][-1]:>14.2e}')
+            print(f'{name:>{width}} |'
+                  + ''.join(f'{e:>9.2e}' for e in p['err']))
+            # Each observed order belongs to a pair of step sizes, and
+            # is written under the finer of the two.
+            print(f'{"order":>{width}} |' + ' ' * 9
+                  + ''.join(f'{o:>9.2f}' for o in p['orders']))
+        print()
+    width = max(len(name) for name in panels)
+    print('Maximum energy error over the long run')
+    for name, p in panels.items():
+        print(f'{name:>{width}} | {p["energy"].max():>8.2e}')
 
 
 def plot(record, panels, filename, layout='screen'):
@@ -599,8 +632,10 @@ def plot(record, panels, filename, layout='screen'):
         e0 = 2.0 * max(errs) if above else 0.5 * min(errs)
         guide = e0 * (fine / fine[-1]) ** order
         ax_c.loglog(fine, guide, color='0.5', linestyle=':')
+        # Each guide carries the steps it was drawn over, since they
+        # differ between orders and the labels are placed later.
         guides.append((rf'$O\left(h^{{{order}}}\right)$' if order > 1
-                       else r'$O\left(h\right)$', guide,
+                       else r'$O\left(h\right)$', fine, guide,
                        'above' if above else 'below'))
     ax_c.set_xscale('log', base=2)
     # Three times matplotlib's default headroom, so the guide labels have
@@ -631,8 +666,8 @@ def plot(record, panels, filename, layout='screen'):
     # The guides are labeled once the layout is final, where no line or
     # marker is in the way.
     renderer = fig.canvas.get_renderer()
-    for text, guide, side in guides:
-        place_label(ax_c, text, fine, guide, renderer, side)
+    for text, steps, guide, side in guides:
+        place_label(ax_c, text, steps, guide, renderer, side)
     # Print figures keep their exact width; screen ones are cropped.
     fig.savefig(filename,
                 bbox_inches=None if layout == 'print' else 'tight')

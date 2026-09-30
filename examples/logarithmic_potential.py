@@ -43,19 +43,23 @@ LAUNCH_ANGLE = np.pi / 4.0
 # Convergence study.
 T = 16.0
 
-# Each family has its own step counts: a fourth-order method reaches
-# the round-off floor four times faster than a second-order one, so a
-# single shared list leaves one family pre-asymptotic while the other
-# has already floored. Within a family, methods are grouped by class;
-# the plot gives each class a color and a marker, each order a line
-# style, and the class name is stored in the data file so that the
-# variants of a class stay distinguishable.
-LOW_ORDER_METHODS = {
+# Each order has its own step counts, chosen so that every method is
+# in its asymptotic regime: the observed orders printed by plotting.py
+# sit within 0.05 of the nominal order across each list. A method
+# reaches that regime at a step of its own, and a fourth-order method
+# reaches the round-off floor four times faster than a second-order
+# one, so no single list serves them all. Within a family, methods are
+# grouped by class; the plot gives each class a color and a marker,
+# each order a line style, and the class name is stored in the data
+# file so that the variants of a class stay distinguishable.
+FIRST_ORDER_METHODS = {
     'Symplectic Euler': Symplectic(order=1),
-    'Störmer-Verlet': Symplectic(order=2),
     'Itoh-Abe': ItohAbe(order=1),
-    'Symmetrized Itoh-Abe': ItohAbe(order=2),
     'Energy-volume split': EnergyVolumeSplit(order=1),
+}
+SECOND_ORDER_METHODS = {
+    'Störmer-Verlet': Symplectic(order=2),
+    'Symmetrized Itoh-Abe': ItohAbe(order=2),
     'Symmetric energy-volume split': EnergyVolumeSplit(order=2),
 }
 FOURTH_ORDER_METHODS = {
@@ -65,14 +69,14 @@ FOURTH_ORDER_METHODS = {
 }
 
 FAMILIES = [
-    ('1st and 2nd order', LOW_ORDER_METHODS,
-     [16384, 32768, 65536, 131072, 262144, 524288]),
-    ('4th order', FOURTH_ORDER_METHODS, [4096, 8192, 16384, 32768, 65536]),
+    ('1st order', FIRST_ORDER_METHODS, [131072, 262144, 524288, 1048576]),
+    ('2nd order', SECOND_ORDER_METHODS, [8192, 16384, 32768, 65536]),
+    ('4th order', FOURTH_ORDER_METHODS, [8192, 16384, 32768, 65536]),
 ]
 
 # Long run for the energy history, at the coarsest step of the
 # convergence study, sampled to keep the file small.
-ENERGY_H = T / FAMILIES[0][2][0]
+ENERGY_H = T / 16384
 ENERGY_STEPS = 32768
 # The same number of samples in every example, whatever the run's
 # length, so every history is drawn at the same resolution.
@@ -278,8 +282,8 @@ def run_family(system, z0, label, methods_in_family, n_list):
             'final_state': [s.tolist() for s in states],
             'energy_error': err.tolist(),
         }
-        print(f'{name:<32s} {type(method).__name__:<20s} '
-              f'{method.order:>5d} {elapsed:6.1f}s', flush=True)
+        print(f'  {label:>9s}  {name:<31s} '
+              f'{type(method).__name__:<17s} {elapsed:6.1f}s', flush=True)
     return {'label': label, 'dt': [T / N for N in n_list],
             'method_order': list(methods_in_family), 'methods': methods}
 
@@ -303,9 +307,9 @@ def main(filename=DATA_FILE):
     z0 = launch()
 
     print('\n' + EXPERIMENT)
-    print('-' * 69)
-    print(f'{"Method":<32s} {"Class":<20s} {"Order":>5s} {"Time":>7s}')
-    print('-' * 69)
+    print('-' * 72)
+    print(f'{"Family":>11s}  {"Method":<31s} {"Class":<17s} {"Time":>7s}')
+    print('-' * 72)
     families = [run_family(system, z0, label, methods, n_list)
                 for label, methods, n_list in FAMILIES]
 
