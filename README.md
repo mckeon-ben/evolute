@@ -216,6 +216,12 @@ the energy error:
 | `henon_heiles.py`          | Hénon–Heiles system                         |
 | `logarithmic_potential.py` | Logarithmic potential, n = 3, not separable |
 
+Each script runs two families of methods, the first and second orders
+and then the fourth, over step counts of their own. A fourth-order
+method reaches the round-off floor four times faster than a
+second-order one, so a single shared list of step counts would leave
+one family pre-asymptotic while the other had already floored.
+
 `plotting.py` turns the data files into error estimates, observed
 orders and figures, each pairing the energy error against time with
 the position error against step size. The scripts can be run from any

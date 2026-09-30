@@ -8,14 +8,18 @@ name one or more files.
 
 File contract
 -------------
-Required: 'schema', 'experiment', 'dt', 'reference', 'energy_time',
-'method_order' and 'methods'. 'reference' carries 'kind' and 'state',
-the exact final state or None. 'methods' maps each display name to
+Required: 'schema', 'experiment', 'reference', 'energy_time' and
+'families'. 'reference' carries 'kind' and 'state', the exact final
+state or None. Each family carries 'label', its own 'dt',
+'method_order' and 'methods', the last mapping each display name to
 'class', 'order', 'time' -- the seconds that method took -- and
-'final_state', one final state per entry of dt, with 'energy_error'
-sampled at the times in 'energy_time'. 'parameters'
-must carry 'T', the final time of the convergence study, and
-'energy_h', the step of the long run.
+'final_state', one final state per entry of that family's dt, with
+'energy_error' sampled at the times in 'energy_time'. Steps are per
+family because a fourth-order method reaches the round-off floor four
+times faster than a second-order one, so a single shared list tends to
+leave one family pre-asymptotic while the other has already floored.
+'parameters' must carry 'T', the final time of the convergence study,
+and 'energy_h', the step of the long run.
 
 Anything else in the file is ignored.
 
@@ -50,7 +54,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-SCHEMA = 1
+SCHEMA = 2
 
 # Where data files live when they are not given by an explicit path.
 # A bare name on the command line is resolved against the working
@@ -282,11 +286,38 @@ def load(filename):
     if record.get('schema') != SCHEMA:
         raise ValueError(f'{filename}: schema {record.get("schema")!r}, '
                          f'expected {SCHEMA}')
-    for key in ('experiment', 'dt', 'reference', 'energy_time',
-                'method_order', 'methods'):
+    for key in ('experiment', 'reference', 'energy_time', 'families'):
         if key not in record:
             raise ValueError(f'{filename}: missing required key {key!r}')
+    for family in record['families']:
+        if 'dt' not in family:
+            raise ValueError(f'{filename}: family {family.get("label")!r} '
+                             f'has no step sizes')
     return record
+
+
+def entries(record):
+    '''
+    Yield every method in the record, family by family.
+
+    Parameters
+    ----------
+    record : dict
+        Record read from a data file.
+
+    Yields
+    ------
+    name : str
+        Display name of the method.
+    entry : dict
+        Its stored results.
+    dt : np.ndarray
+        The step sizes of its family.
+    '''
+    for family in record['families']:
+        dt = np.asarray(family['dt'], dtype=float)
+        for name in family['method_order']:
+            yield name, family['methods'][name], dt
 
 
 def assign_styles(record):
@@ -308,15 +339,14 @@ def assign_styles(record):
         Display name -> dict of matplotlib line properties.
     '''
     colors, markers, styles = {}, {}, {}
-    for name in record['method_order']:
-        cls = record['methods'][name]['class']
+    for name, entry, _ in entries(record):
+        cls = entry['class']
         colors.setdefault(cls, PALETTE[len(colors) % len(PALETTE)])
         markers.setdefault(cls, MARKERS.get(
             cls, FALLBACK_MARKERS[len(markers) % len(FALLBACK_MARKERS)]))
         styles[name] = {
             'color': colors[cls],
-            'linestyle': LINE_STYLES.get(record['methods'][name]['order'],
-                                         '-'),
+            'linestyle': LINE_STYLES.get(entry['order'], '-'),
             'marker': markers[cls],
         }
     return styles
@@ -462,16 +492,17 @@ def analyze(record):
     -------
     dict
         Display name -> dict with the step sizes 'h', the position
-        errors 'err', the observed 'orders' and the sampled energy
-        error 'energy'.
+        errors 'err', the observed 'orders', the nominal 'order' and
+        the sampled energy error 'energy'. Methods keep the order of
+        the families they belong to.
     '''
     ref = record['reference']['state']
     out = {}
-    for name in record['method_order']:
-        entry = record['methods'][name]
-        h, err, orders = differences(entry['final_state'], record['dt'],
+    for name, entry, dt in entries(record):
+        h, err, orders = differences(entry['final_state'], dt,
                                      entry['order'], ref)
         out[name] = {'h': h, 'err': err, 'orders': orders,
+                     'order': entry['order'],
                      'energy': np.asarray(entry['energy_error'])}
     return out
 
@@ -488,17 +519,18 @@ def print_tables(record, panels):
         Per-method results, as returned by analyze.
     '''
     kind = record['reference']['kind']
-    width = max(26, max(len(name) for name in record['method_order']))
+    width = max(26, max(len(name) for name in panels))
     rule = '-' * (width + 46)
     print(f'\n{record["experiment"]}  (reference: {kind})')
     print(rule)
     print(f'{"Method":<{width}s} {"max energy error":>17s}'
           f' {"order":>7s} {"finest error":>14s}')
     print(rule)
-    for name in record['method_order']:
-        p = panels[name]
-        print(f'{name:<{width}s} {p["energy"].max():>17.2e}'
-              f' {p["orders"][-1]:>7.2f} {p["err"][-1]:>14.2e}')
+    for family in record['families']:
+        for name in family['method_order']:
+            p = panels[name]
+            print(f'{name:<{width}s} {p["energy"].max():>17.2e}'
+                  f' {p["orders"][-1]:>7.2f} {p["err"][-1]:>14.2e}')
 
 
 def plot(record, panels, filename, layout='screen'):
@@ -532,7 +564,7 @@ def plot(record, panels, filename, layout='screen'):
         fig, axes = plt.subplots(1, 2, figsize=(11, 4.4))
     ax_e, ax_c = axes
 
-    for name in record['method_order']:
+    for name in panels:
         # The histories are told apart by color, line style and level;
         # markers on traces this dense only add clutter, so they are
         # left to the convergence panel, whose points are the data.
@@ -549,19 +581,21 @@ def plot(record, panels, filename, layout='screen'):
     ax_e.set_title(f'energy error, $h = {h_text}$')
     ax_e.set_ylim(bottom=FLOOR)
 
-    finest = {}
-    for name in record['method_order']:
-        p = panels[name]
+    by_order = {}
+    for name, p in panels.items():
         ax_c.loglog(p['h'], p['err'], label=name, **styles[name])
-        order = record['methods'][name]['order']
-        finest.setdefault(order, []).append(p['err'][-1])
+        by_order.setdefault(p['order'], []).append(p)
 
-    h = panels[record['method_order'][0]]['h']
-    fine = h[len(h) // 2 - 1:]
-    lowest = min(finest)
+    lowest = min(by_order)
     guides = []
-    for order, errs in sorted(finest.items()):
+    for order, results in sorted(by_order.items()):
+        # A guide spans the steps of its own order alone: the families
+        # are measured over different ranges, so one shared span would
+        # leave a guide floating away from the curves it describes.
+        h = results[0]['h']
+        fine = h[len(h) // 2 - 1:]
         above = order == lowest
+        errs = [p['err'][-1] for p in results]
         e0 = 2.0 * max(errs) if above else 0.5 * min(errs)
         guide = e0 * (fine / fine[-1]) ** order
         ax_c.loglog(fine, guide, color='0.5', linestyle=':')
