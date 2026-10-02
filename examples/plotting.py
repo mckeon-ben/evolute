@@ -121,15 +121,16 @@ DEFAULT_FONTS = ['DejaVu Sans']
 LAYOUTS = {
     'journal': {'width': JOURNAL_WIDTH, 'font_size': 8, 'line_width': 1.0,
                 'suffix': '-journal.pdf', 'usetex': True,
-                'preamble': CM_PREAMBLE, 'fonts': CM_FONTS,
-                'mathtext': 'cm'},
+                'preamble': CM_PREAMBLE, 'family': 'serif',
+                'fonts': CM_FONTS, 'mathtext': 'cm'},
     'thesis': {'width': THESIS_WIDTH, 'font_size': 10, 'line_width': 1.0,
                'suffix': '-thesis.pdf', 'usetex': True,
-               'preamble': CM_PREAMBLE, 'fonts': CM_FONTS,
-               'mathtext': 'cm'},
+               'preamble': CM_PREAMBLE, 'family': 'serif',
+               'fonts': CM_FONTS, 'mathtext': 'cm'},
     'default': {'width': DEFAULT_WIDTH, 'font_size': 10, 'line_width': 1.0,
                 'suffix': '.pdf', 'usetex': False, 'preamble': '',
-                'fonts': DEFAULT_FONTS, 'mathtext': 'dejavusans'},
+                'family': 'sans-serif', 'fonts': DEFAULT_FONTS,
+                'mathtext': 'dejavusans'},
 }
 
 # The figure is this many times as tall as it is wide, so its panels
@@ -179,9 +180,11 @@ def use_layout(name):
     '''
     Set the lettering, line widths and renderer of one layout.
 
-    Under usetex the font and mathtext settings are ignored, since the
-    preamble decides both; they stay in place as the fallback for the
-    layout that does without LaTeX.
+    The family is read whether or not LaTeX is in use: under usetex it
+    chooses the font declaration, and the preamble refines it. What
+    the fonts behind that family are, and the mathtext set, matter
+    only to the layout that does without LaTeX, since there the
+    preamble has no say.
 
     Parameters
     ----------
@@ -198,7 +201,12 @@ def use_layout(name):
     plt.rcParams.update({
         'text.usetex': layout['usetex'],
         'text.latex.preamble': layout['preamble'],
-        'font.family': layout['fonts'],
+        # Naming the generic family, not the fonts behind it: under
+        # usetex matplotlib reads its LaTeX font declaration from this
+        # alone, and falls back to Computer Modern for anything it does
+        # not recognise as a family.
+        'font.family': layout['family'],
+        f'font.{layout["family"]}': layout['fonts'],
         'mathtext.fontset': layout['mathtext'],
         'axes.formatter.use_mathtext': True,
         'font.size': size,
