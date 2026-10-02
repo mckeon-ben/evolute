@@ -216,11 +216,12 @@ the energy error:
 | `henon_heiles.py`          | Hénon–Heiles system                         |
 | `logarithmic_potential.py` | Logarithmic potential, n = 3, not separable |
 
-Each script runs two families of methods, the first and second orders
-and then the fourth, over step counts of their own. A fourth-order
-method reaches the round-off floor four times faster than a
-second-order one, so a single shared list of step counts would leave
-one family pre-asymptotic while the other had already floored.
+Each script runs three families, one per order, over step counts of
+their own. Each order enters its asymptotic regime at a step of its
+own — the first order latest, and `ItohAbe` latest of the three
+classes — and leaves it again at the round-off floor, which a
+fourth-order method reaches four times faster than a second-order one,
+so no single list of step counts serves them all.
 
 `plotting.py` turns the data files into error estimates, observed
 orders and figures, each pairing the energy error against time with
@@ -230,18 +231,31 @@ directory: data files always go to `examples/data/` and figures to
 
 ```bash
 python examples/kepler.py
-python examples/plotting.py kepler          # one data file
-python examples/plotting.py                 # every data file
+python examples/plotting.py kepler            # one data file
+python examples/plotting.py                   # every data file
+python examples/plotting.py kepler --thesis   # for the thesis
+python examples/plotting.py kepler --journal  # for the journal
 ```
 
-`plotting.py` typesets through LaTeX by default, needing an
-installation with the `helvet` and `sansmath` packages. Set
-`USETEX = False` at the top of the script to use matplotlib's own
-renderer instead.
+`plotting.py` draws a figure for one of three pages, and the
+arrangement is the same in all three: the panels, their labels and the
+legend below them do not move, so a figure drawn for the thesis
+differs from the journal one only in its width and its lettering.
 
-Add `--print` to draw a figure at its final size for the *SIAM Journal
-on Numerical Analysis*, as PDF; the `PRINT_*` settings at the top of the
-script hold that journal's width, lettering and line sizes.
+- No flag: matplotlib's own figure, 6.4 in wide, in DejaVu Sans.
+  Nothing beyond matplotlib is needed, so anyone can redraw these
+  figures from the data files.
+- `--thesis`: the text width of an A4 page with 25 mm margins,
+  160 mm, in Computer Modern, the body typeface of a LaTeX thesis.
+- `--journal`: the text width of the *SIAM Journal on
+  Numerical Analysis*, 5.125 in, in Computer Modern, as PDF.
+
+The two LaTeX layouts need a local installation, with the `cm-super`
+fonts for Computer Modern. Each layout ends the figure's name its own
+way, so drawing the same data for two pages leaves two files rather
+than one. The `LAYOUTS` table at the top of the script holds each
+page's width, lettering and renderer; a thesis class with margins
+other than 25 mm wants its own `\textwidth` in `THESIS_WIDTH`.
 
 ## Package layout
 

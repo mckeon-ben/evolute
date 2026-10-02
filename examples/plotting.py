@@ -4,7 +4,11 @@ estimates, observed orders and convergence figures, and the stored
 energy histories into energy-error plots.
 
 Run with no arguments to plot every data file in the data folder, or
-name one or more files.
+name one or more files. The figure is drawn for one of three pages:
+--journal for the journal's text width and typeface, --thesis for an
+A4 thesis in Computer Modern, and, with neither, for matplotlib's own
+renderer, which needs no LaTeX installation. The three differ only in
+width, lettering and renderer; the arrangement is the same in all.
 
 File contract
 -------------
@@ -14,10 +18,11 @@ state or None. Each family carries 'label', its own 'dt',
 'method_order' and 'methods', the last mapping each display name to
 'class', 'order', 'time' -- the seconds that method took -- and
 'final_state', one final state per entry of that family's dt, with
-'energy_error' sampled at the times in 'energy_time'. Steps are per
-family because a fourth-order method reaches the round-off floor four
-times faster than a second-order one, so a single shared list tends to
-leave one family pre-asymptotic while the other has already floored.
+'energy_error' recorded at the times in 'energy_time'. Steps are per
+family because each order enters its asymptotic regime at a step of
+its own and leaves it again at the round-off floor, which a
+fourth-order method reaches four times faster than a second-order one,
+so no single shared list serves them all.
 'parameters' must carry 'T', the final time of the convergence study,
 and 'energy_h', the step of the long run.
 
@@ -25,8 +30,8 @@ Anything else in the file is ignored.
 
 From final states to errors
 ---------------------------
-With an exact reference the error is the position error at each step
-size. Otherwise, with q(dt) the positions of the final state stored
+With an exact reference the error is the position error against it.
+Otherwise, with q(dt) the positions of the final state stored
 for each method at step size dt, the successive-difference norm
 
     delta(dt) = || q(dt) - q(dt/2) ||
@@ -36,7 +41,11 @@ delta(dt) = e(dt) - e(dt/2) = e(dt) (1 - 2**-p), so
 
     e(dt) ~ delta(dt) / (1 - 2**-p),
 
-the error at the coarser step of each pair.
+the error at the coarser step of each pair, leaving the finest run as
+the yardstick of the ladder rather than a point of its own. The finest
+run is dropped from the exact errors too, so that an example reports
+the same step sizes, and the same number of points, whichever of the
+two estimators it uses.
 
 The observed order is taken from the ratio of consecutive errors
 against the ratio of their step sizes,
@@ -66,64 +75,74 @@ DATA_DIR = Path(__file__).resolve().parent / 'data'
 # directory holds only inputs and the other only outputs.
 PLOT_DIR = Path(__file__).resolve().parent / 'plots'
 
-# Default output format. Vector, so the figure stays sharp at any zoom
-# and at whatever size a paper puts it.
-FIGURE_SUFFIX = '.pdf'
-
-# Print layout for the SIAM Journal on Numerical Analysis, used with
-# --print. The figure is drawn at the text width of the SIAM class,
-# 5.125 in, so no text or line is scaled down: lines of at least 1 pt,
-# all text in black, and vector PDF. SIAM prints in black and white, so
-# methods are told apart by marker and dash as well as color. The text
-# is in Computer Modern, the typeface of the SIAM class, rather than the
-# Helvetica of the screen figures.
-PRINT_WIDTH = 5.125
-PRINT_FONT_SIZE = 8
-PRINT_LINE_WIDTH = 1.0
-PRINT_SUFFIX = '.pdf'
-
-# LaTeX's own default is Computer Modern, so the print preamble needs no
-# font packages.
-PRINT_LATEX_PREAMBLE = ''
-
-# Fallback for when LaTeX is off, from fonts matplotlib ships: Computer
-# Modern as cmr10, with tick labels set as maths to keep their minus
-# signs, and DejaVu Serif for any glyph cmr10 lacks, such as the umlaut
-# in Stormer.
-PRINT_FONT_STACK = ['cmr10', 'DejaVu Serif']
-
 # Smallest value shown on the energy axis. Steps where the energy error
 # is exactly zero in floating point are drawn at this floor.
 FLOOR = 1e-17
 
-# Typeset through a local LaTeX installation instead of matplotlib's
-# own engine. Set to False on a machine without LaTeX.
-USETEX = True
+# A figure is drawn for one of three pages, named on the command line.
+# The arrangement is the same in all three -- the panels, their labels
+# and the legend beneath them do not move -- so a figure differs
+# between them only in the width it is drawn at, its lettering, and
+# the renderer that sets the text.
+#
+#   --journal   the text width and typeface of the journal
+#   --thesis    the text width of an A4 thesis, set in Computer
+#               Modern, the body typeface of a LaTeX thesis
+#   neither     matplotlib's own renderer and fonts, which needs no
+#               LaTeX installation, so that anyone can redraw these
+#               figures from the data files
+#
+# Each width is the width the figure is used at, so nothing is scaled
+# afterwards and no lettering shrinks: the SIAM class sets its text at
+# 5.125 in, an A4 page with 25 mm margins leaves 160 mm, and
+# matplotlib's own figure is 6.4 in wide. SIAM prints in black and
+# white, so methods are told apart by marker and dash as well as by
+# color, in every layout.
+JOURNAL_WIDTH = 5.125
+THESIS_WIDTH = 160 / 25.4
+DEFAULT_WIDTH = 6.4
 
-LATEX_PREAMBLE = r'''
-\usepackage[T1]{fontenc}
-\usepackage{helvet}
-\renewcommand{\familydefault}{\sfdefault}
-\usepackage{sansmath}
-\sansmath
-\DeclareSymbolFont{sansletters}{OT1}{phv}{m}{n}
-\DeclareMathSymbol{-}{\mathbin}{sansletters}{"2D}
-'''
+# LaTeX sets Computer Modern unless told otherwise, so neither page
+# that goes through it asks for a font package: the SIAM class sets
+# its text in Computer Modern as well.
+CM_PREAMBLE = ''
 
-FONT_STACK = ['Helvetica', 'Arial', 'TeX Gyre Heros', 'Nimbus Sans',
-              'Liberation Sans', 'FreeSans', 'DejaVu Sans']
+# What matplotlib would set the Computer Modern pages in were their
+# usetex turned off below: cmr10, with DejaVu Serif behind it for any
+# glyph cmr10 lacks, such as the umlaut in Stormer.
+CM_FONTS = ['cmr10', 'DejaVu Serif']
 
+# matplotlib's own, so that the figure drawn without a flag is the one
+# its documentation would lead a reader to expect.
+DEFAULT_FONTS = ['DejaVu Sans']
+
+# Each layout ends the figure's name its own way, so that drawing the
+# same data for two pages leaves two files rather than one.
+LAYOUTS = {
+    'journal': {'width': JOURNAL_WIDTH, 'font_size': 8, 'line_width': 1.0,
+                'suffix': '-journal.pdf', 'usetex': True,
+                'preamble': CM_PREAMBLE, 'fonts': CM_FONTS,
+                'mathtext': 'cm'},
+    'thesis': {'width': THESIS_WIDTH, 'font_size': 10, 'line_width': 1.0,
+               'suffix': '-thesis.pdf', 'usetex': True,
+               'preamble': CM_PREAMBLE, 'fonts': CM_FONTS,
+               'mathtext': 'cm'},
+    'default': {'width': DEFAULT_WIDTH, 'font_size': 10, 'line_width': 1.0,
+                'suffix': '.pdf', 'usetex': False, 'preamble': '',
+                'fonts': DEFAULT_FONTS, 'mathtext': 'dejavusans'},
+}
+
+# The figure is this many times as tall as it is wide, so its panels
+# keep their shape whichever page it is drawn for.
+FIGURE_RATIO = 0.94
+
+# What every layout shares. The fonts and sizes are not here, since
+# those are what the layouts differ in; use_layout sets them.
 plt.rcParams.update({
-    'font.family': 'sans-serif',
-    'font.sans-serif': FONT_STACK,
-    'mathtext.fontset': 'dejavusans',
     'axes.grid': True,
     # Opaque rather than translucent, which EPS cannot store.
     'grid.color': '0.9',
     'figure.dpi': 150,
-    'lines.linewidth': 1.0,
-    'lines.markersize': 3.0,
-    'legend.fontsize': 9,
     # Embed TrueType rather than the Type 3 fonts matplotlib writes by
     # default.
     'pdf.fonttype': 42,
@@ -156,39 +175,31 @@ FALLBACK_MARKERS = ['v', 'P', 'X', '*', '<', '>']
 LINE_STYLES = {1: '--', 2: '-', 4: '-.'}
 
 
-def use_latex(enabled=USETEX):
+def use_layout(name):
     '''
-    Switch LaTeX typesetting on or off.
+    Set the lettering, line widths and renderer of one layout.
 
-    Under usetex the mathtext and font.sans-serif settings above are
-    ignored, since the preamble decides both; they stay in place as the
-    fallback for when this is off.
+    Under usetex the font and mathtext settings are ignored, since the
+    preamble decides both; they stay in place as the fallback for the
+    layout that does without LaTeX.
 
     Parameters
     ----------
-    enabled : bool, optional
-        Whether to typeset through LaTeX.
+    name : str
+        Key of LAYOUTS.
+
+    Returns
+    -------
+    dict
+        The layout, whose width and suffix the caller still needs.
     '''
+    layout = LAYOUTS[name]
+    size, width = layout['font_size'], layout['line_width']
     plt.rcParams.update({
-        'text.usetex': enabled,
-        'text.latex.preamble': LATEX_PREAMBLE if enabled else '',
-    })
-
-
-def use_print_layout():
-    '''
-    Switch to the journal's print sizes for text and lines.
-
-    All text is set in Computer Modern at PRINT_FONT_SIZE and every line,
-    including the axes, ticks and grid, at PRINT_LINE_WIDTH. Call after
-    use_latex, whose preamble this replaces.
-    '''
-    size, width = PRINT_FONT_SIZE, PRINT_LINE_WIDTH
-    if plt.rcParams['text.usetex']:
-        plt.rcParams['text.latex.preamble'] = PRINT_LATEX_PREAMBLE
-    plt.rcParams.update({
-        'font.family': PRINT_FONT_STACK,
-        'mathtext.fontset': 'cm',
+        'text.usetex': layout['usetex'],
+        'text.latex.preamble': layout['preamble'],
+        'font.family': layout['fonts'],
+        'mathtext.fontset': layout['mathtext'],
         'axes.formatter.use_mathtext': True,
         'font.size': size,
         'axes.titlesize': size,
@@ -205,6 +216,9 @@ def use_print_layout():
         'ytick.minor.width': width,
         'lines.markersize': 3.5,
     })
+    # Anything a layout needs beyond the settings every layout sets.
+    plt.rcParams.update(layout.get('rc', {}))
+    return layout
 
 
 def resolve(name):
@@ -286,7 +300,8 @@ def load(filename):
     if record.get('schema') != SCHEMA:
         raise ValueError(f'{filename}: schema {record.get("schema")!r}, '
                          f'expected {SCHEMA}')
-    for key in ('experiment', 'reference', 'energy_time', 'families'):
+    for key in ('experiment', 'parameters', 'reference', 'energy_time',
+                'families'):
         if key not in record:
             raise ValueError(f'{filename}: missing required key {key!r}')
     for family in record['families']:
@@ -439,10 +454,13 @@ def differences(states, dt, order, reference=None):
     '''
     Position errors and observed orders for one method.
 
-    With a reference state the error is the L2 position error at each
-    step size. Without one, successive step sizes are compared and the
-    difference rescaled into an error estimate, which is then indexed by
-    the coarser step of each pair, so it aligns with dt[:-1].
+    Without a reference state, successive step sizes are compared and
+    the difference rescaled into an error estimate, which belongs to the
+    coarser step of each pair; the finest run is then the yardstick and
+    carries no error of its own. With a reference state the error is the
+    L2 position error, and the finest run is dropped from it so that
+    both estimators report the same step sizes, dt[:-1], and so the same
+    number of points whichever one an example uses.
 
     Parameters
     ----------
@@ -457,26 +475,24 @@ def differences(states, dt, order, reference=None):
 
     Returns
     -------
-    h : np.ndarray
-        Step sizes the errors correspond to.
     err : np.ndarray
-        Position errors.
+        Position errors, shape (len(dt) - 1,).
     orders : np.ndarray
-        Observed orders, shorter than err by one.
+        Observed orders, shape (len(dt) - 2,).
     '''
     states = np.asarray(states, dtype=float)
     dt = np.asarray(dt, dtype=float)
     half = states.shape[1] // 2
     q = states[:, :half]
     if reference is not None:
-        h = dt
-        err = np.linalg.norm(q - np.asarray(reference)[:half], axis=1)
+        err = np.linalg.norm(q[:-1] - np.asarray(reference)[:half], axis=1)
     else:
-        h = dt[:-1]
-        err = np.linalg.norm(np.diff(q, axis=0), axis=1) / (1 - 2.0 ** -order)
+        scale = 1.0 / (1.0 - 2.0 ** -order)
+        err = scale * np.linalg.norm(np.diff(q, axis=0), axis=1)
     with np.errstate(divide='ignore', invalid='ignore'):
-        orders = np.log(err[:-1] / err[1:]) / np.log(h[:-1] / h[1:])
-    return h, err, orders
+        orders = (np.log(err[:-1] / err[1:])
+                  / np.log(dt[:-2] / dt[1:-1]))
+    return err, orders
 
 
 def analyze(record):
@@ -491,17 +507,18 @@ def analyze(record):
     Returns
     -------
     dict
-        Display name -> dict with the step sizes 'h', the position
-        errors 'err', the observed 'orders', the nominal 'order' and
-        the sampled energy error 'energy'. Methods keep the order of
-        the families they belong to.
+        Display name -> dict with the step sizes 'h' the errors
+        correspond to, the position errors 'err', the observed
+        'orders', the nominal 'order' and the energy error
+        'energy'. Methods keep the order of the families they belong
+        to.
     '''
     ref = record['reference']['state']
     out = {}
     for name, entry, dt in entries(record):
-        h, err, orders = differences(entry['final_state'], dt,
-                                     entry['order'], ref)
-        out[name] = {'h': h, 'err': err, 'orders': orders,
+        err, orders = differences(entry['final_state'], dt,
+                                  entry['order'], ref)
+        out[name] = {'h': dt[:-1], 'err': err, 'orders': orders,
                      'order': entry['order'],
                      'energy': np.asarray(entry['energy_error'])}
     return out
@@ -566,9 +583,13 @@ def print_tables(record, panels):
         print(f'{name:>{width}} | {p["energy"].max():>8.2e}')
 
 
-def plot(record, panels, filename, layout='screen'):
+def plot(record, panels, filename, layout='default'):
     '''
     Energy error against time, and position error against step size.
+
+    The panels are stacked, untitled, with one legend below them,
+    whichever layout is in use: a caption carries what a title would
+    say, and the figure then reads the same on every page.
 
     Parameters
     ----------
@@ -578,10 +599,10 @@ def plot(record, panels, filename, layout='screen'):
         Per-method results, as returned by analyze.
     filename : str or Path
         Output figure path.
-    layout : {'screen', 'print'}, optional
-        'screen' (default) puts the panels side by side under a title;
-        'print' stacks them at the journal width, untitled, with the
-        legend below, since the caption belongs to the paper.
+    layout : str, optional
+        Key of LAYOUTS, which fixes the width the figure is drawn at.
+        The lettering and renderer are already in place from
+        use_layout.
 
     Returns
     -------
@@ -590,11 +611,9 @@ def plot(record, panels, filename, layout='screen'):
     '''
     styles = assign_styles(record)
     t = np.asarray(record['energy_time'])
-    if layout == 'print':
-        fig, axes = plt.subplots(2, 1,
-                                 figsize=(PRINT_WIDTH, 2.1 * 2 + 0.6))
-    else:
-        fig, axes = plt.subplots(1, 2, figsize=(11, 4.4))
+    page = LAYOUTS[layout]
+    fig, axes = plt.subplots(
+        2, 1, figsize=(page['width'], FIGURE_RATIO * page['width']))
     ax_e, ax_c = axes
 
     for name in panels:
@@ -604,14 +623,18 @@ def plot(record, panels, filename, layout='screen'):
         style = dict(styles[name], marker='None')
         ax_e.semilogy(t, np.maximum(panels[name]['energy'], FLOOR),
                       label=name, **style)
-    # The long-run step is taken from the convergence study, so a power
-    # of two is written as one, as on the step-size axis.
+    # The long-run step is a power of two, so it is written as one, as
+    # on the step-size axis.
     h_run = record['parameters']['energy_h']
     k = np.log2(h_run)
     h_text = f'2^{{{k:.0f}}}' if k == round(k) else f'{h_run:g}'
-    ax_e.set_xlabel('$t$')
+    # The numerical solution exists at the step times and nowhere
+    # between them, so the axis is t_n = n h rather than a continuous
+    # t, which also ties it to the z_n of the ordinate. The step the
+    # long run was made at is named here rather than in a title, since
+    # it is the unit of this axis and the panels carry no titles.
+    ax_e.set_xlabel(f'$t_n = n h$, $h = {h_text}$')
     ax_e.set_ylabel(r'$|H(z_n) - H(z_0)| / |H(z_0)|$')
-    ax_e.set_title(f'energy error, $h = {h_text}$')
     ax_e.set_ylim(bottom=FLOOR)
 
     by_order = {}
@@ -641,36 +664,32 @@ def plot(record, panels, filename, layout='screen'):
     # Three times matplotlib's default headroom, so the guide labels have
     # room above the upper guide and below the lower one.
     ax_c.margins(y=0.15)
-    ax_c.set_xlabel('$h$')
+    # As on the other panel, the final time the errors were measured at
+    # is named on the axis rather than in a title.
+    ax_c.set_xlabel(f'$h$, $T = {record["parameters"]["T"]:.4g}$')
     ax_c.set_ylabel(r'$\|q_N - q(T)\|_2$' if record['reference']['state']
                     else r'Estimated $\|q_N - q(T)\|_2$')
-    ax_c.set_title(f'position error at $T = {record["parameters"]["T"]:.4g}$')
 
-    if layout == 'print':
-        # Untitled; the caption describes the panels.
-        for ax in axes:
-            ax.set_title('')
-        # One legend under the stacked panels, where it covers no data.
-        handles, labels = ax_c.get_legend_handles_labels()
-        # Two columns, since the names are long, and enough height for
-        # the rows they take.
-        ncol = 2
-        legend_height = 0.2 * -(-len(labels) // ncol)
-        fig.tight_layout(rect=(0, legend_height / fig.get_figheight(), 1, 1))
-        fig.legend(handles, labels, loc='lower center', ncol=ncol,
-                   frameon=False)
-    else:
-        ax_c.legend(loc='center left', bbox_to_anchor=(1.02, 0.5))
-        fig.suptitle(record['experiment'])
-        fig.tight_layout()
+    # One legend under the stacked panels, where it covers no data.
+    handles, labels = ax_c.get_legend_handles_labels()
+    # Three columns, with enough height for the rows they take. The
+    # legend is set a point below the body text, with its handles and
+    # columns drawn in, which keeps three columns of these names
+    # inside even the narrowest of the pages above.
+    ncol = 3
+    legend_height = 0.2 * -(-len(labels) // ncol)
+    fig.tight_layout(rect=(0, legend_height / fig.get_figheight(), 1, 1))
+    fig.legend(handles, labels, loc='lower center', ncol=ncol,
+               frameon=False, fontsize=page['font_size'] - 1,
+               handlelength=1.5, columnspacing=1.0, handletextpad=0.4)
     # The guides are labeled once the layout is final, where no line or
     # marker is in the way.
     renderer = fig.canvas.get_renderer()
     for text, steps, guide, side in guides:
         place_label(ax_c, text, steps, guide, renderer, side)
-    # Print figures keep their exact width; screen ones are cropped.
-    fig.savefig(filename,
-                bbox_inches=None if layout == 'print' else 'tight')
+    # Saved at the width it was drawn at, so the figure arrives on the
+    # page at the size its lettering was chosen for.
+    fig.savefig(filename)
     print(f'Saved {filename}')
     return fig
 
@@ -693,17 +712,23 @@ def main():
                              f'{DATA_DIR}/')
     parser.add_argument('-o', '--output', default=None,
                         help=f'output figure (default: {PLOT_DIR}/<name>'
-                             f'{FIGURE_SUFFIX}, or {PRINT_SUFFIX} with '
-                             f'--print)')
-    parser.add_argument('--print', action='store_true', dest='print_layout',
-                        help='draw at the print size of the journal')
+                             f', with the suffix the layout calls for)')
+    # One page at a time, and matplotlib's own when neither is asked
+    # for, which is the layout that needs no LaTeX installation.
+    page = parser.add_mutually_exclusive_group()
+    page.add_argument('--journal', action='store_const', dest='layout',
+                      const='journal',
+                      help='draw at the text width and in the typeface '
+                           'of the journal; needs LaTeX')
+    page.add_argument('--thesis', action='store_const', dest='layout',
+                      const='thesis',
+                      help='draw at the text width of an A4 thesis, in '
+                           'Computer Modern; needs LaTeX')
+    parser.set_defaults(layout='default')
     args = parser.parse_args()
 
-    use_latex()
-    layout, suffix = 'screen', FIGURE_SUFFIX
-    if args.print_layout:
-        use_print_layout()
-        layout, suffix = 'print', PRINT_SUFFIX
+    layout = args.layout
+    suffix = use_layout(layout)['suffix']
 
     files = ([resolve(name) for name in args.results] if args.results
              else find_all())
