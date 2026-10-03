@@ -4,10 +4,9 @@ evolute: Energy- and VOLUme-preserving Time integration Engine.
 A Python package implementing one-step integrators for Hamiltonian
 systems, centered on EnergyVolumeSplit, which conserves energy and
 preserves phase-space volume exactly. Symplectic and discrete gradient
-methods are included for comparison.
-EnergyVolumeSplit and Symplectic each provide a first-order method, its
-second-order symmetric composition, and the fourth-order triple jump of
-that.
+methods are included for comparison. EnergyVolumeSplit and Symplectic
+each provide a first-order method, its second-order symmetric
+composition, and the fourth-order triple jump of that.
 
 Classes
 -------

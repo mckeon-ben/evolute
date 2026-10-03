@@ -126,7 +126,13 @@ class ItohAbe(DiscreteGradientMethod):
     dz_min : float, optional
         Coordinate increments at or below this size use the i-th
         partial derivative at the midpoint of that coordinate step
-        instead of the quotient. Default eps^(1/3), about 6e-6.
+        instead of the quotient. Default eps^(1/3), about 6e-6, where
+        the round-off of the quotient, ~ eps / |dz_i|, balances the
+        O(|dz_i|^3) error of the fallback. The best threshold is
+        problem-dependent: it beats sqrt(eps) on the Kepler and
+        Henon-Heiles examples and loses to it on the logarithmic
+        potential, whose third derivative is large where the
+        increments are small.
     **kwargs
         Passed to ImplicitMethod (xtol).
 
@@ -147,17 +153,6 @@ class ItohAbe(DiscreteGradientMethod):
         self.name = {1: 'Itoh-Abe', 2: 'Symmetrized Itoh-Abe',
                      4: 'Itoh-Abe triple jump'}[order]
         self.reverse = reverse
-        # Coordinate increments are often small (e.g. near turning
-        # points), where the quotient carries round-off ~ eps / |dz_i|,
-        # which reaches the energy through the solver residual. The
-        # fallback replaces the quotient by the midpoint derivative, so
-        # the telescoping identity instead picks up an error ~ |dz_i|^3.
-        # The two balance near (h eps |H|)^(1/4), which is a few times
-        # 1e-6 for the examples, so eps^(1/3) ~ 6e-6 is about right. The
-        # best threshold is problem-dependent: over 2^18 steps it beats
-        # sqrt(eps) by 6x on the Kepler system and 2x on Henon-Heiles,
-        # and loses to it by 12x on the logarithmic potential, whose
-        # third derivative is large where the increments are small.
         super().__init__(dz_min=dz_min, **kwargs)
 
     def step(self, system, z0, h, E=None):

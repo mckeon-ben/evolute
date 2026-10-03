@@ -40,25 +40,13 @@ ANGULAR_MOMENTUM = 0.2
 R_START = 0.2
 LAUNCH_ANGLE = np.pi / 4.0
 
-# Convergence study. The step counts below fall faster than T does:
-# a shorter run reaches the asymptotic regime at a coarser step,
-# because the terms beyond the leading one grow with the time
-# integrated.
+# Convergence study. The step counts fall faster than T: a shorter
+# run reaches the asymptotic regime at a coarser step.
 T = 8.0
 
-# Each order has its own step counts, chosen so that every method is
-# in its asymptotic regime: the observed orders printed by plotting.py
-# sit within 0.05 of the nominal order across each list. Each order
-# enters that regime at a step of its own -- the first order latest,
-# and Itoh-Abe latest of the three classes -- and leaves it again at
-# the round-off floor, which a fourth-order method reaches four times
-# faster than a second-order one, so no single list serves them all.
-# The finest count of a list is the yardstick of the ladder and
-# carries no error of its own, so a list of N counts is drawn at
-# N - 1 step sizes. Within a family, methods are grouped by class;
-# the plot gives each class a color and a marker, each order a line
-# style, and the class name is stored in the data file so that the
-# variants of a class stay distinguishable.
+# Each order has its own step counts, chosen so that the orders
+# plotting.py prints stay within 0.05 of nominal; the finest count is
+# the yardstick, so N counts are drawn at N - 1 step sizes.
 FIRST_ORDER_METHODS = {
     'Symplectic Euler': Symplectic(order=1),
     'Itoh-Abe': ItohAbe(order=1),
@@ -81,29 +69,9 @@ FAMILIES = [
     ('4th order', FOURTH_ORDER_METHODS, [2048, 4096, 8192, 16384]),
 ]
 
-# Long run for the energy history, every step of it. The panel is
-# read for how large the energy error grows, which is the upper edge
-# of a fast oscillation, and keeping every N-th step samples through
-# that oscillation rather than along its edge: it serrates the edge
-# and understates the largest error.
-# It is set by the time it covers rather than by a count of steps,
-# because the step below is chosen for the methods and not for the
-# run, so a step count would leave the span implicit and move it
-# whenever the step changed. That step is coarser than the
-# convergence study needs: a coarse step covers more time per step,
-# and it lifts the energy error of the symplectic methods further
-# clear of the round-off floor the discrete-gradient methods sit on,
-# while their own exact conservation is indifferent to the step. How
-# coarse it can be is set by the methods, since an implicit solve
-# eventually fails to converge and the energy-volume split has its
-# singular set to stay clear of. On this system that bound binds: the
-# split reaches p1 = p2 = 0 at a turning point of the meridional
-# motion if the step is any coarser than the one below. The span is
-# then set to cover as many oscillations of this orbit as the other
-# examples cover of theirs -- the vertical oscillation takes about
-# 1.54 units, so this is some eighty of them -- rather than to reach
-# the same number on the axis, which would mean a far longer run for
-# no more evidence, the orbit being the faster one.
+# Long run for the energy history, every step of it. The step is as
+# coarse as the split allows: any coarser and it reaches p1 = p2 = 0
+# at a turning point of the meridional motion.
 ENERGY_T = 128.0
 ENERGY_H = T / 4096
 ENERGY_STEPS = round(ENERGY_T / ENERGY_H)
@@ -150,9 +118,13 @@ def logarithmic(rc=CORE_RADIUS, qf=FLATTENING):
     return HamiltonianSystem(3, V, grad_V, T, grad_T, name='Logarithmic')
 
 
-def to_cartesian(z):
+def _cartesian(z):
     '''
-    Convert a cylindrical state to Cartesian coordinates.
+    The state in the coordinates the error is measured in.
+
+    This system is integrated in cylindrical coordinates, so the state
+    is converted. Every example takes this step, so that the machinery
+    below it does not vary between them.
 
     Parameters
     ----------
@@ -287,7 +259,7 @@ def run_family(system, z0, label, methods_in_family, n_list):
     methods = {}
     for name, method in methods_in_family.items():
         t0 = time.perf_counter()
-        states = [to_cartesian(final_state(method, system, z0, T, N))
+        states = [_cartesian(final_state(method, system, z0, T, N))
                   for N in n_list]
         err = energy_history(method, system, z0, ENERGY_H, ENERGY_STEPS)
         elapsed = time.perf_counter() - t0

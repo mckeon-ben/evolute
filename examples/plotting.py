@@ -1,59 +1,22 @@
 '''
 Reads JSON data files, turning the stored final states into error
-estimates, observed orders and convergence figures, and the stored
-energy histories into energy-error plots.
-
-Run with no arguments to plot every data file in the data folder, or
-name one or more files. The figure is drawn for one of three pages:
---journal for the journal's text width and typeface, --thesis for an
-A4 thesis in Computer Modern, and, with neither, for matplotlib's own
-renderer, which needs no LaTeX installation. The three differ only in
-width, lettering and renderer; the arrangement is the same in all.
+estimates and observed orders and the stored energy histories into
+energy-error traces, prints the tables and draws the figure.
 
 File contract
 -------------
-Required: 'schema', 'experiment', 'reference', 'energy_time' and
-'families'. 'reference' carries 'kind' and 'state', the exact final
-state or None. Each family carries 'label', its own 'dt',
-'method_order' and 'methods', the last mapping each display name to
-'class', 'order', 'time' -- the seconds that method took -- and
-'final_state', one final state per entry of that family's dt, with
-'energy_error' recorded at the times in 'energy_time'. Steps are per
-family because each order enters its asymptotic regime at a step of
-its own and leaves it again at the round-off floor, which a
-fourth-order method reaches four times faster than a second-order one,
-so no single shared list serves them all.
-'parameters' must carry 'T', the final time of the convergence study,
-and 'energy_h', the step of the long run.
-
-Anything else in the file is ignored.
-
-From final states to errors
----------------------------
-With an exact reference the error is the position error against it.
-Otherwise, with q(dt) the positions of the final state stored
-for each method at step size dt, the successive-difference norm
-
-    delta(dt) = || q(dt) - q(dt/2) ||
-
-is the error up to a known constant. Writing e(dt) for the error,
-delta(dt) = e(dt) - e(dt/2) = e(dt) (1 - 2**-p), so
-
-    e(dt) ~ delta(dt) / (1 - 2**-p),
-
-the error at the coarser step of each pair, leaving the finest run as
-the yardstick of the ladder rather than a point of its own. The finest
-run is dropped from the exact errors too, so that an example reports
-the same step sizes, and the same number of points, whichever of the
-two estimators it uses.
-
-The observed order is taken from the ratio of consecutive errors
-against the ratio of their step sizes,
-
-    p = log(e_i / e_{i+1}) / log(dt_i / dt_{i+1}),
-
-rather than as log2 of the error ratio, so a step list that is not
-exactly halved throughout does not silently misreport the order.
+Required: 'schema', 'experiment', 'reference', 'energy_time',
+'parameters' and 'families'. 'reference' carries 'kind' and 'state',
+the exact final state or None. 'parameters' carries 'T', the final
+time of the convergence study, and 'energy_h', the step of the long
+run. Each family carries 'label', its own 'dt' (its step sizes),
+'method_order' and 'methods', which maps each display name to 'class',
+'order', 'time' (seconds taken), 'final_state', one final state per
+entry of 'dt', and 'energy_error', one value per entry of
+'energy_time'. Each family has its own 'dt' because each order enters
+its asymptotic regime at a step of its own and leaves it at the
+round-off floor, which a fourth-order method reaches four times
+faster.
 '''
 
 import argparse
@@ -63,61 +26,33 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 SCHEMA = 2
 
-# Where data files live when they are not given by an explicit path.
-# A bare name on the command line is resolved against the working
-# directory first and then here, and passing no name at all plots every
-# data file in this folder.
+# Inputs and outputs, beside this script wherever it is run from.
 DATA_DIR = Path(__file__).resolve().parent / 'data'
-
-# Where figures are written, kept apart from the data folder so one
-# directory holds only inputs and the other only outputs.
 PLOT_DIR = Path(__file__).resolve().parent / 'plots'
 
-# Smallest value shown on the energy axis. Steps where the energy error
-# is exactly zero in floating point are drawn at this floor.
+# Smallest value shown on the energy axis; an error of exactly zero in
+# floating point is drawn at this floor.
 FLOOR = 1e-17
 
-# A figure is drawn for one of three pages, named on the command line.
-# The arrangement is the same in all three -- the panels, their labels
-# and the legend beneath them do not move -- so a figure differs
-# between them only in the width it is drawn at, its lettering, and
-# the renderer that sets the text.
-#
-#   --journal   the text width and typeface of the journal
-#   --thesis    the text width of an A4 thesis, set in Computer
-#               Modern, the body typeface of a LaTeX thesis
-#   neither     matplotlib's own renderer and fonts, which needs no
-#               LaTeX installation, so that anyone can redraw these
-#               figures from the data files
-#
-# Each width is the width the figure is used at, so nothing is scaled
-# afterwards and no lettering shrinks: the SIAM class sets its text at
-# 5.125 in, an A4 page with 25 mm margins leaves 160 mm, and
-# matplotlib's own figure is 6.4 in wide. SIAM prints in black and
-# white, so methods are told apart by marker and dash as well as by
-# color, in every layout.
+# Page widths in inches, drawn at final size so nothing is rescaled:
+# the SIAM text width (5.125 in), an A4 page with 25 mm margins
+# (160 mm), and matplotlib's default. The layouts differ only in width,
+# lettering and renderer; only the default needs no LaTeX.
 JOURNAL_WIDTH = 5.125
 THESIS_WIDTH = 160 / 25.4
 DEFAULT_WIDTH = 6.4
 
-# LaTeX sets Computer Modern unless told otherwise, so neither page
-# that goes through it asks for a font package: the SIAM class sets
-# its text in Computer Modern as well.
+# Computer Modern is LaTeX's default, and the SIAM text font, so
+# neither page that goes through LaTeX needs a package.
 CM_PREAMBLE = ''
-
-# What matplotlib would set the Computer Modern pages in were their
-# usetex turned off below: cmr10, with DejaVu Serif behind it for any
-# glyph cmr10 lacks, such as the umlaut in Stormer.
 CM_FONTS = ['cmr10', 'DejaVu Serif']
 
-# matplotlib's own, so that the figure drawn without a flag is the one
-# its documentation would lead a reader to expect.
 DEFAULT_FONTS = ['DejaVu Sans']
 
-# Each layout ends the figure's name its own way, so that drawing the
-# same data for two pages leaves two files rather than one.
+# Distinct suffixes, so drawing for two pages leaves two files.
 LAYOUTS = {
     'journal': {'width': JOURNAL_WIDTH, 'font_size': 8, 'line_width': 1.0,
                 'suffix': '-journal.pdf', 'usetex': True,
@@ -133,58 +68,24 @@ LAYOUTS = {
                 'mathtext': 'dejavusans'},
 }
 
-# The figure is this many times as tall as it is wide, so its panels
-# keep their shape whichever page it is drawn for.
+# Height over width, the same on every page.
 FIGURE_RATIO = 0.94
 
-# What every layout shares. The fonts and sizes are not here, since
-# those are what the layouts differ in; use_layout sets them.
+# Settings shared by every layout.
 plt.rcParams.update({
     'axes.grid': True,
-    # Opaque rather than translucent, which EPS cannot store.
     'grid.color': '0.9',
     'figure.dpi': 150,
-    # Embed TrueType rather than the Type 3 fonts matplotlib writes by
-    # default.
     'pdf.fonttype': 42,
     'ps.fonttype': 42,
 })
-
-# Marker by method class, so the classes stay distinguishable in black
-# and white. Classes not listed fall back to the markers below.
-MARKERS = {
-    'Symplectic': 'o',
-    'ItohAbe': 's',
-    'EnergyVolumeSplit': 'D',
-}
-
-# Okabe-Ito, the standard colorblind-safe qualitative palette.
-PALETTE = [
-    '#0072B2',  # blue
-    '#D55E00',  # vermillion
-    '#009E73',  # bluish green
-    '#CC79A7',  # reddish purple
-    '#E69F00',  # orange
-    '#56B4E9',  # sky blue
-]
-
-FALLBACK_MARKERS = ['v', 'P', 'X', '*', '<', '>']
-
-# Line style by order, so the order reads off the figure in black and
-# white as well as the class does from the marker. Orders not listed
-# are drawn solid.
-LINE_STYLES = {1: '--', 2: '-', 4: '-.'}
 
 
 def use_layout(name):
     '''
     Set the lettering, line widths and renderer of one layout.
 
-    The family is read whether or not LaTeX is in use: under usetex it
-    chooses the font declaration, and the preamble refines it. What
-    the fonts behind that family are, and the mathtext set, matter
-    only to the layout that does without LaTeX, since there the
-    preamble has no say.
+    The font list and mathtext set matter only when LaTeX is off.
 
     Parameters
     ----------
@@ -201,10 +102,6 @@ def use_layout(name):
     plt.rcParams.update({
         'text.usetex': layout['usetex'],
         'text.latex.preamble': layout['preamble'],
-        # Naming the generic family, not the fonts behind it: under
-        # usetex matplotlib reads its LaTeX font declaration from this
-        # alone, and falls back to Computer Modern for anything it does
-        # not recognise as a family.
         'font.family': layout['family'],
         f'font.{layout["family"]}': layout['fonts'],
         'mathtext.fontset': layout['mathtext'],
@@ -224,19 +121,41 @@ def use_layout(name):
         'ytick.minor.width': width,
         'lines.markersize': 3.5,
     })
-    # Anything a layout needs beyond the settings every layout sets.
     plt.rcParams.update(layout.get('rc', {}))
     return layout
+
+
+# Fixed markers by method class; other classes use FALLBACK_MARKERS.
+# SIAM prints in black and white, so the marker tells the classes
+# apart there and LINE_STYLES tells the orders apart.
+MARKERS = {
+    'Symplectic': 'o',
+    'ItohAbe': 's',
+    'EnergyVolumeSplit': 'D',
+}
+
+# Okabe-Ito colorblind-safe palette.
+PALETTE = [
+    '#0072B2',  # blue
+    '#D55E00',  # vermillion
+    '#009E73',  # bluish green
+    '#CC79A7',  # reddish purple
+    '#E69F00',  # orange
+    '#56B4E9',  # sky blue
+]
+
+FALLBACK_MARKERS = ['v', 'P', 'X', '*', '<', '>']
+
+# Line style by order; other orders are drawn solid.
+LINE_STYLES = {1: '--', 2: '-', 4: '-.'}
 
 
 def resolve(name):
     '''
     Find a data file given a path, a filename, or a bare stem.
 
-    Tries the working directory before DATA_DIR so an explicit path
-    always wins, and appends the .json suffix only when the name does
-    not already carry one -- appending unconditionally would mangle a
-    name that has dots in it for other reasons.
+    Looks in the working directory, then DATA_DIR, adding .json if
+    the name lacks it.
 
     Parameters
     ----------
@@ -379,15 +298,11 @@ def place_label(ax, text, x, y, renderer, side='below'):
     '''
     Label a guide line where the label overlaps no line.
 
-    Tries the preferred side of the guide at points along it, from its
-    middle outwards, before the other side. Below the guide the label
-    goes to the right of the point, then directly under it; above, to
-    the left, then directly over it. Offsetting it sideways first keeps
-    it off a rising guide however steep. The first placement that lies
-    inside the axes, clear of the frame by the same gap as the guide,
-    and touches no line or marker drawn on them is kept; if none does,
-    the label takes the first placement tried. Call once the layout is
-    final, since the test is made in display coordinates.
+    Tries points along the guide from its middle outwards, on the
+    preferred side first, and keeps the first placement inside the
+    axes that touches no line or marker; failing that, the first one
+    tried. Call once the layout is final, since the test is made in
+    display coordinates.
 
     Parameters
     ----------
@@ -400,8 +315,7 @@ def place_label(ax, text, x, y, renderer, side='below'):
     renderer : matplotlib.backend_bases.RendererBase
         Renderer used to measure the label.
     side : {'below', 'above'}, optional
-        Side of the guide tried first; the one away from the data, so
-        the label cannot be read as labeling a curve. Default 'below'.
+        Side of the guide tried first. Default 'below'.
 
     Returns
     -------
@@ -417,7 +331,6 @@ def place_label(ax, text, x, y, renderer, side='below'):
               for line in lines if line.get_marker() not in (None, 'None')]
     pad = renderer.points_to_pixels(plt.rcParams['lines.markersize'])
     gap = 4
-    # The label keeps the same gap from the frame as from the guide.
     frame = ax.get_window_extent(renderer).padded(
         -renderer.points_to_pixels(gap))
     label = ax.annotate(text, xy=(x[0], y[0]), xytext=(0, 0),
@@ -462,13 +375,9 @@ def differences(states, dt, order, reference=None):
     '''
     Position errors and observed orders for one method.
 
-    Without a reference state, successive step sizes are compared and
-    the difference rescaled into an error estimate, which belongs to the
-    coarser step of each pair; the finest run is then the yardstick and
-    carries no error of its own. With a reference state the error is the
-    L2 position error, and the finest run is dropped from it so that
-    both estimators report the same step sizes, dt[:-1], and so the same
-    number of points whichever one an example uses.
+    Errors align with dt[:-1] under either estimator: a successive
+    difference belongs to the coarser step of its pair, and the finest
+    run is dropped from the exact errors to match.
 
     Parameters
     ----------
@@ -477,7 +386,7 @@ def differences(states, dt, order, reference=None):
     dt : array_like
         Step sizes, each half the one before.
     order : int
-        Nominal order, used to rescale the successive differences.
+        Nominal order, used to rescale differences into errors.
     reference : array_like, optional
         Exact final state, shape (2n,).
 
@@ -515,11 +424,9 @@ def analyze(record):
     Returns
     -------
     dict
-        Display name -> dict with the step sizes 'h' the errors
-        correspond to, the position errors 'err', the observed
-        'orders', the nominal 'order' and the energy error
-        'energy'. Methods keep the order of the families they belong
-        to.
+        Display name -> dict of step sizes 'h', position errors
+        'err', observed 'orders', nominal 'order' and energy error
+        'energy', in the order of the families.
     '''
     ref = record['reference']['state']
     out = {}
@@ -535,9 +442,6 @@ def analyze(record):
 def step_label(h):
     '''
     Label a step size, as a power of two where it is one.
-
-    The step counts are powers of two, so the labels match the ticks of
-    the step-size axis and stay short.
 
     Parameters
     ----------
@@ -580,8 +484,7 @@ def print_tables(record, panels):
             p = panels[name]
             print(f'{name:>{width}} |'
                   + ''.join(f'{e:>9.2e}' for e in p['err']))
-            # Each observed order belongs to a pair of step sizes, and
-            # is written under the finer of the two.
+            # Each order sits under the finer step of its pair.
             print(f'{"order":>{width}} |' + ' ' * 9
                   + ''.join(f'{o:>9.2f}' for o in p['orders']))
         print()
@@ -595,9 +498,7 @@ def plot(record, panels, filename, layout='default'):
     '''
     Energy error against time, and position error against step size.
 
-    The panels are stacked, untitled, with one legend below them,
-    whichever layout is in use: a caption carries what a title would
-    say, and the figure then reads the same on every page.
+    The panels are stacked and untitled, with one shared legend below.
 
     Parameters
     ----------
@@ -608,9 +509,8 @@ def plot(record, panels, filename, layout='default'):
     filename : str or Path
         Output figure path.
     layout : str, optional
-        Key of LAYOUTS, which fixes the width the figure is drawn at.
-        The lettering and renderer are already in place from
-        use_layout.
+        Key of LAYOUTS, giving the figure width; lettering is already
+        set by use_layout.
 
     Returns
     -------
@@ -625,22 +525,15 @@ def plot(record, panels, filename, layout='default'):
     ax_e, ax_c = axes
 
     for name in panels:
-        # The histories are told apart by color, line style and level;
-        # markers on traces this dense only add clutter, so they are
-        # left to the convergence panel, whose points are the data.
+        # No markers: these traces are too dense to carry them.
         style = dict(styles[name], marker='None')
         ax_e.semilogy(t, np.maximum(panels[name]['energy'], FLOOR),
                       label=name, **style)
-    # The long-run step is a power of two, so it is written as one, as
-    # on the step-size axis.
     h_run = record['parameters']['energy_h']
     k = np.log2(h_run)
     h_text = f'2^{{{k:.0f}}}' if k == round(k) else f'{h_run:g}'
-    # The numerical solution exists at the step times and nowhere
-    # between them, so the axis is t_n = n h rather than a continuous
-    # t, which also ties it to the z_n of the ordinate. The step the
-    # long run was made at is named here rather than in a title, since
-    # it is the unit of this axis and the panels carry no titles.
+    # The solution exists at the step times and nowhere between, so
+    # the axis is t_n = n h, which also ties it to the z_n above.
     ax_e.set_xlabel(f'$t_n = n h$, $h = {h_text}$')
     ax_e.set_ylabel(r'$|H(z_n) - H(z_0)| / |H(z_0)|$')
     ax_e.set_ylim(bottom=FLOOR)
@@ -653,9 +546,8 @@ def plot(record, panels, filename, layout='default'):
     lowest = min(by_order)
     guides = []
     for order, results in sorted(by_order.items()):
-        # A guide spans the steps of its own order alone: the families
-        # are measured over different ranges, so one shared span would
-        # leave a guide floating away from the curves it describes.
+        # Each guide spans the steps of its own order, as the families
+        # are measured over different ranges.
         h = results[0]['h']
         fine = h[len(h) // 2 - 1:]
         above = order == lowest
@@ -663,40 +555,30 @@ def plot(record, panels, filename, layout='default'):
         e0 = 2.0 * max(errs) if above else 0.5 * min(errs)
         guide = e0 * (fine / fine[-1]) ** order
         ax_c.loglog(fine, guide, color='0.5', linestyle=':')
-        # Each guide carries the steps it was drawn over, since they
-        # differ between orders and the labels are placed later.
         guides.append((rf'$O\left(h^{{{order}}}\right)$' if order > 1
                        else r'$O\left(h\right)$', fine, guide,
                        'above' if above else 'below'))
     ax_c.set_xscale('log', base=2)
-    # Three times matplotlib's default headroom, so the guide labels have
-    # room above the upper guide and below the lower one.
+    # Extra headroom for the guide labels.
     ax_c.margins(y=0.15)
-    # As on the other panel, the final time the errors were measured at
-    # is named on the axis rather than in a title.
     ax_c.set_xlabel(f'$h$, $T = {record["parameters"]["T"]:.4g}$')
     ax_c.set_ylabel(r'$\|q_N - q(T)\|_2$' if record['reference']['state']
                     else r'Estimated $\|q_N - q(T)\|_2$')
 
     # One legend under the stacked panels, where it covers no data.
     handles, labels = ax_c.get_legend_handles_labels()
-    # Three columns, with enough height for the rows they take. The
-    # legend is set a point below the body text, with its handles and
-    # columns drawn in, which keeps three columns of these names
-    # inside even the narrowest of the pages above.
+    # Three columns, a point smaller than the text, to fit the
+    # narrowest page.
     ncol = 3
     legend_height = 0.2 * -(-len(labels) // ncol)
     fig.tight_layout(rect=(0, legend_height / fig.get_figheight(), 1, 1))
     fig.legend(handles, labels, loc='lower center', ncol=ncol,
                frameon=False, fontsize=page['font_size'] - 1,
                handlelength=1.5, columnspacing=1.0, handletextpad=0.4)
-    # The guides are labeled once the layout is final, where no line or
-    # marker is in the way.
+    # Labeled once the layout is final, clear of the lines.
     renderer = fig.canvas.get_renderer()
     for text, steps, guide, side in guides:
         place_label(ax_c, text, steps, guide, renderer, side)
-    # Saved at the width it was drawn at, so the figure arrives on the
-    # page at the size its lettering was chosen for.
     fig.savefig(filename)
     print(f'Saved {filename}')
     return fig
@@ -721,8 +603,7 @@ def main():
     parser.add_argument('-o', '--output', default=None,
                         help=f'output figure (default: {PLOT_DIR}/<name>'
                              f', with the suffix the layout calls for)')
-    # One page at a time, and matplotlib's own when neither is asked
-    # for, which is the layout that needs no LaTeX installation.
+    # At most one page; the default needs no LaTeX.
     page = parser.add_mutually_exclusive_group()
     page.add_argument('--journal', action='store_const', dest='layout',
                       const='journal',
@@ -754,9 +635,7 @@ def main():
         try:
             record = load(path)
         except (ValueError, KeyError) as exc:
-            # Report and carry on rather than abandoning the batch: a
-            # results folder may hold unrelated JSON, and one bad file
-            # should not cost the figures for the good ones.
+            # Skip a bad file rather than abandon the batch.
             print(f'{path}: skipped ({exc})')
             failed += 1
             continue

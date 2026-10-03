@@ -23,7 +23,10 @@ import numpy as np
 @lru_cache(maxsize=None)
 def _canonical_J(n):
     '''
-    Build and cache the canonical structure matrix on R^{2n}.
+    Build the canonical structure matrix on R^{2n}.
+
+    The matrix is cached and read-only, so every caller shares one
+    copy.
 
     Parameters
     ----------
@@ -40,26 +43,6 @@ def _canonical_J(n):
     J[n:, :n] = -np.eye(n)
     J.flags.writeable = False
     return J
-
-
-def canonical_J(n):
-    '''
-    Return the canonical structure matrix on R^{2n}.
-
-    The matrix is cached and read-only, so every caller shares one
-    copy.
-
-    Parameters
-    ----------
-    n : int
-        Degrees of freedom.
-
-    Returns
-    -------
-    np.ndarray
-        Read-only (2n, 2n) matrix [[0, I], [-I, 0]].
-    '''
-    return _canonical_J(n)
 
 
 def _default_T(q, p_rest):
@@ -310,7 +293,7 @@ class HamiltonianSystem:
         np.ndarray
             Read-only (2n, 2n) canonical matrix.
         '''
-        return canonical_J(self.n)
+        return _canonical_J(self.n)
 
     def vector_field(self, z):
         '''

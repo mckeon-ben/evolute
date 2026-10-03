@@ -34,8 +34,9 @@ pip install .
 ```
 
 Use `pip install -e .` instead to work on the code in place. The
-scripts in `examples/` also need a LaTeX installation; see
-[Examples](#examples).
+scripts in `examples/` need nothing more by default; only the optional
+`--thesis` and `--journal` figure layouts of `plotting.py` need a LaTeX
+installation; see [Examples](#examples).
 
 ## Quick start
 
@@ -210,11 +211,11 @@ the results to JSON: a convergence study to a fixed final time at a
 sequence of step counts, and a long run at a single step size recording
 the energy error:
 
-| Script                     | System                                      |
-| -------------------------- | ------------------------------------------- |
-| `kepler.py`                | Planar Kepler problem                       |
-| `henon_heiles.py`          | Hénon–Heiles system                         |
-| `logarithmic_potential.py` | Logarithmic potential, n = 3, not separable |
+| Script                     | System                                        |
+| -------------------------- | --------------------------------------------- |
+| `kepler.py`                | Planar Kepler problem                         |
+| `henon_heiles.py`          | Hénon–Heiles system                           |
+| `logarithmic_potential.py` | Logarithmic potential, `n = 3`, not separable |
 
 Each script runs three families, one per order, over step counts of
 their own. Each order enters its asymptotic regime at a step of its
@@ -250,12 +251,11 @@ differs from the journal one only in its width and its lettering.
 - `--journal`: the text width of the *SIAM Journal on
   Numerical Analysis*, 5.125 in, in Computer Modern, as PDF.
 
-The two LaTeX layouts need a local installation, with the `cm-super`
-fonts for Computer Modern. Each layout ends the figure's name its own
-way, so drawing the same data for two pages leaves two files rather
-than one. The `LAYOUTS` table at the top of the script holds each
-page's width, lettering and renderer; a thesis class with margins
-other than 25 mm wants its own `\textwidth` in `THESIS_WIDTH`.
+Both `--thesis` and `--journal` need a local LaTeX installation, with
+the `cm-super` fonts for Computer Modern. Each layout ends the
+figure's name its own way, so drawing the same data for two pages
+leaves two files rather than one. The `LAYOUTS` table at the top of
+the script holds each page's width, lettering and renderer.
 
 ## Package layout
 
@@ -264,16 +264,16 @@ pyproject.toml
 README.md
 LICENSE
 evolute/
-    __init__.py              public API
-    system.py                HamiltonianSystem, canonical_J
-    integrator.py            OneStepMethod, PartitionedMethod,
-                             ImplicitMethod, integrate, evolve
-    energy_volume_split.py   EnergyVolumeSplit
-    symplectic.py            Symplectic (baseline)
-    discrete_gradient.py     ItohAbe (baseline)
+    __init__.py                 public API
+    system.py                   HamiltonianSystem
+    integrator.py               OneStepMethod, PartitionedMethod,
+                                ImplicitMethod, integrate, evolve
+    energy_volume_split.py      EnergyVolumeSplit
+    symplectic.py               Symplectic (baseline)
+    discrete_gradient.py        ItohAbe (baseline)
 examples/
-    <test problem>.py        three simulation scripts
-    plotting.py              error estimates and figures
+    <test problem>.py           three simulation scripts
+    plotting.py                 error estimates and figures
 ```
 
 ## License

@@ -4,11 +4,18 @@ Base classes for one-step methods, and the drivers that run them.
 Every method maps a state z0 to z1 = Phi_h(z0) through step(system,
 z0, h, E). PartitionedMethod supplies the kick and drift substeps used
 by the symplectic methods; ImplicitMethod solves a residual equation for
-z1.
+z1. The Yoshida composition that lifts a symmetric second-order map
+to fourth order lives here too, so that every method reaches fourth
+order the same way.
 
 The target energy E is an optional argument of every step, used by an
 energy-conserving method and ignored by the others, so that one driver
 runs them all. The drivers are integrate and evolve.
+
+References
+----------
+Yoshida, H., 1990. Construction of higher order symplectic
+integrators. Physics Letters A, 150(5-7), pp.262-268.
 '''
 
 from abc import ABC, abstractmethod
@@ -16,10 +23,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 from scipy.optimize import fixed_point, root
 
-# Yoshida's coefficients. A symmetric second-order map applied at these
-# three step lengths is fourth order: summing to one makes the
-# composition consistent, and 2 g1^3 + g2^3 = 0 cancels the leading
-# error term, which is odd in h for a symmetric map.
+# Yoshida's coefficients: they sum to one for consistency, and
+# 2 g1^3 + g2^3 = 0 cancels the leading error of a symmetric map.
 _CUBE_ROOT_2 = 2.0 ** (1 / 3)
 TRIPLE_JUMP = (1.0 / (2.0 - _CUBE_ROOT_2),
                -_CUBE_ROOT_2 / (2.0 - _CUBE_ROOT_2),
