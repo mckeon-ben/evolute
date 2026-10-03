@@ -54,6 +54,7 @@ FOURTH_ORDER_METHODS = {
     'Energy-volume split triple jump': EnergyVolumeSplit(order=4),
 }
 
+# One entry per figure column: label, methods, step counts.
 FAMILIES = [
     ('1st order', FIRST_ORDER_METHODS, [512, 1024, 2048, 4096, 8192]),
     ('2nd order', SECOND_ORDER_METHODS, [64, 128, 256, 512, 1024]),

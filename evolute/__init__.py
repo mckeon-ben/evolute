@@ -38,16 +38,16 @@ ItohAbe
 '''
 
 from .system import HamiltonianSystem
-from .integrator import evolve, integrate
+from .integrator import integrate, evolve
 from .energy_volume_split import EnergyVolumeSplit
-from .discrete_gradient import ItohAbe
 from .symplectic import Symplectic
+from .discrete_gradient import ItohAbe
 
 __all__ = [
     'HamiltonianSystem',
-    'evolve',
     'integrate',
+    'evolve',
     'EnergyVolumeSplit',
-    'ItohAbe',
-    'Symplectic'
+    'Symplectic',
+    'ItohAbe'
 ]

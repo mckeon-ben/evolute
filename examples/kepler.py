@@ -54,6 +54,7 @@ FOURTH_ORDER_METHODS = {
     'Energy-volume split triple jump': EnergyVolumeSplit(order=4),
 }
 
+# One entry per figure column: label, methods, step counts.
 FAMILIES = [
     ('1st order', FIRST_ORDER_METHODS, [512, 1024, 2048, 4096]),
     ('2nd order', SECOND_ORDER_METHODS, [128, 256, 512, 1024, 2048]),
@@ -106,10 +107,14 @@ def _elements(z0, mu):
 
     Returns
     -------
-    a, e : float
-        Semi-major axis and eccentricity.
-    P, Q : np.ndarray
-        Perifocal basis vectors, each shape (2,).
+    a : float
+        Semi-major axis.
+    e : float
+        Eccentricity.
+    P : np.ndarray
+        Perifocal basis vector toward perihelion, shape (2,).
+    Q : np.ndarray
+        Perifocal basis vector a quarter turn on, shape (2,).
     E0 : float
         Eccentric anomaly at t = 0.
 

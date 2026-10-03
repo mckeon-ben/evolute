@@ -4,7 +4,7 @@ Hamiltonian systems with an isotropic momentum pair.
 State ordering is z = (q, p) with q, p in R^n, n >= 2, so dim = 2n and
 the canonical equations are dz/dt = J grad H(z), J = [[0, I], [-I, 0]].
 
-Every system has the form
+Every system has the form::
 
     H(q, p) = (p1^2 + p2^2) / 2 + T(q, p3, ..., pn) + V(q),
 
@@ -164,7 +164,9 @@ class HamiltonianSystem:
         if n < 2:
             raise ValueError(f'n must be at least 2, got {n}')
         if (T is None) != (grad_T is None):
-            raise ValueError('supply both T and grad_T, or neither')
+            raise ValueError('T and grad_T must be given together, '
+                             f'got T: {T is not None} and '
+                             f'grad_T: {grad_T is not None}')
         self.n = n
         self.V = V
         self.grad_V = grad_V
@@ -195,12 +197,16 @@ class HamiltonianSystem:
 
         Returns
         -------
-        q, p : np.ndarray
-            Views of z, each shape (n,). Writing to them writes to z.
+        q : np.ndarray
+            View of the positions, shape (n,). Writing to it writes
+            to z.
+        p : np.ndarray
+            View of the momenta, shape (n,). Writing to it writes
+            to z.
         '''
         return z[:self.n], z[self.n:]
 
-    # --- full Hamiltonian ------------------------------------------------
+    # Full Hamiltonian ------------------------------------------------
 
     def kinetic(self, q, p):
         '''
@@ -311,7 +317,7 @@ class HamiltonianSystem:
         '''
         return self.J(z) @ self.grad_H(z)
 
-    # --- diagnostics -----------------------------------------------------
+    # Diagnostics -----------------------------------------------------
 
     def energy_error(self, z0, z):
         '''

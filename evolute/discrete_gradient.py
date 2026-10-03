@@ -1,7 +1,7 @@
 '''
 Discrete gradient method (comparison baseline).
 
-A discrete gradient gbar(z0, z1) satisfies
+A discrete gradient gbar(z0, z1) satisfies::
 
     gbar . (z1 - z0) = H(z1) - H(z0),
 
@@ -31,7 +31,7 @@ class DiscreteGradientMethod(ImplicitMethod):
     '''
     Implicit method z1 = z0 + h J gbar(z0, z1) for a discrete gradient.
 
-    Subclasses implement discrete_gradient.
+    Subclasses implement ``discrete_gradient()``.
 
     Parameters
     ----------
@@ -91,7 +91,7 @@ class ItohAbe(DiscreteGradientMethod):
     '''
     Itoh-Abe (coordinate increment) discrete gradient method.
 
-    The sweep from a to b is
+    The sweep from a to b is::
 
         g_i(a, b) = [H(w_i) - H(w_{i-1})] / (b_i - a_i),
 
@@ -102,7 +102,7 @@ class ItohAbe(DiscreteGradientMethod):
     g(z1, z0); as a map it is the adjoint Phi*_h = (Phi_{-h})^{-1}.
 
     The first-order map takes gbar = g(z0, z1), which is not symmetric.
-    Order 2 takes the mean of the two sweeps,
+    Order 2 takes the mean of the two sweeps::
 
         gbar = [g(z0, z1) + g(z1, z0)] / 2,
 
@@ -146,9 +146,10 @@ class ItohAbe(DiscreteGradientMethod):
     def __init__(self, order=1, reverse=False,
                  dz_min=np.finfo(float).eps ** (1 / 3), **kwargs):
         if order not in (1, 2, 4):
-            raise ValueError(f'order must be 1, 2 or 4, got {order!r}')
+            raise ValueError(f'order must be 1, 2 or 4, got {order}')
         if reverse and order != 1:
-            raise ValueError('reverse is only for the first-order map')
+            raise ValueError('reverse must be False unless order is 1, '
+                             f'got order {order}')
         self.order = order
         self.name = {1: 'Itoh-Abe', 2: 'Symmetrized Itoh-Abe',
                      4: 'Itoh-Abe triple jump'}[order]

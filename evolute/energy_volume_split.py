@@ -25,7 +25,7 @@ volume exactly; it is not symplectic. The first-order method is M; the
 symmetric second-order method is  M*_{h/2} o M_{h/2}, with M* the
 adjoint (substeps reversed, each replaced by its adjoint Euler
 variant); the fourth-order method applies that symmetric map at the
-three step lengths of TRIPLE_JUMP. Energy and volume are inherited by
+three triple-jump step lengths. Energy and volume are inherited by
 any such composition, since every factor conserves them.
 
 The change of variables is singular where p1 = p2 = 0, and the scalar
@@ -79,7 +79,7 @@ class EnergyVolumeSplit(OneStepMethod):
 
     def __init__(self, order=2, xtol=1e-14, maxiter=100):
         if order not in (1, 2, 4):
-            raise ValueError(f'order must be 1, 2 or 4, got {order!r}')
+            raise ValueError(f'order must be 1, 2 or 4, got {order}')
         self.order = order
         self.name = {1: 'Energy-volume split',
                      2: 'Symmetric energy-volume split',
@@ -202,7 +202,7 @@ class EnergyVolumeSplit(OneStepMethod):
         return np.concatenate([q, [rho * np.cos(phi), rho * np.sin(phi)],
                                pr])
 
-    # --- change of variables ---------------------------------------------
+    # Change of variables ---------------------------------------------
 
     @staticmethod
     def _r2(system, E, q, pr):
@@ -314,7 +314,7 @@ class EnergyVolumeSplit(OneStepMethod):
         dT_dq, dT_dp = system.grad_T(q, pr)
         return system.grad_V(q) + dT_dq, dT_dp
 
-    # --- M: symplectic Euler, implicit in phi (resp. p') -----------------
+    # M: symplectic Euler, implicit in phi (resp. p') -----------------
 
     def _forward(self, system, E, phi, q, pr, h):
         '''
@@ -375,7 +375,7 @@ class EnergyVolumeSplit(OneStepMethod):
             q[2:] += h * self._grad_F(system, q, pr)[1]
         return phi
 
-    # --- M*: adjoint, substeps reversed, implicit in q_k -----------------
+    # M*: adjoint, substeps reversed, implicit in q_k -----------------
 
     def _adjoint(self, system, E, phi, q, pr, h):
         '''

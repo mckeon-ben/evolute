@@ -1,8 +1,8 @@
 '''
 Base classes for one-step methods, and the drivers that run them.
 
-Every method maps a state z0 to z1 = Phi_h(z0) through step(system,
-z0, h, E). PartitionedMethod supplies the kick and drift substeps used
+Every method maps a state z0 to z1 = Phi_h(z0) through ``step(system,
+z0, h, E)``. PartitionedMethod supplies the kick and drift substeps used
 by the symplectic methods; ImplicitMethod solves a residual equation for
 z1. The Yoshida composition that lifts a symmetric second-order map
 to fourth order lives here too, so that every method reaches fourth
@@ -10,7 +10,7 @@ order the same way.
 
 The target energy E is an optional argument of every step, used by an
 energy-conserving method and ignored by the others, so that one driver
-runs them all. The drivers are integrate and evolve.
+runs them all. The drivers are ``integrate()`` and ``evolve()``.
 
 References
 ----------
@@ -26,18 +26,19 @@ from scipy.optimize import fixed_point, root
 # Yoshida's coefficients: they sum to one for consistency, and
 # 2 g1^3 + g2^3 = 0 cancels the leading error of a symmetric map.
 _CUBE_ROOT_2 = 2.0 ** (1 / 3)
-TRIPLE_JUMP = (1.0 / (2.0 - _CUBE_ROOT_2),
-               -_CUBE_ROOT_2 / (2.0 - _CUBE_ROOT_2),
-               1.0 / (2.0 - _CUBE_ROOT_2))
+_TRIPLE_JUMP = (1.0 / (2.0 - _CUBE_ROOT_2),
+                -_CUBE_ROOT_2 / (2.0 - _CUBE_ROOT_2),
+                1.0 / (2.0 - _CUBE_ROOT_2))
 
 
 class OneStepMethod(ABC):
     '''
     One-step map z0 -> Phi_h(z0).
 
-    Subclasses set the attributes below and implement step. One that
-    comes in several orders implements the first-order map _first and
-    the symmetric map _symmetric, and routes step through _by_order.
+    Subclasses set the attributes below and implement ``step()``. One
+    that comes in several orders implements the first-order map
+    ``_first()`` and the symmetric map ``_symmetric()``, and routes
+    ``step()`` through ``_by_order()``.
 
     Attributes
     ----------
@@ -113,7 +114,7 @@ class OneStepMethod(ABC):
         return self._first(system, z0, h, E)
 
     @staticmethod
-    def _compose(symmetric, system, z0, h, E, coefficients=TRIPLE_JUMP):
+    def _compose(symmetric, system, z0, h, E, coefficients=_TRIPLE_JUMP):
         '''
         Apply a symmetric map at a sequence of scaled step lengths.
 
@@ -136,8 +137,9 @@ class OneStepMethod(ABC):
         E : float or None
             Target energy, passed to every factor.
         coefficients : sequence of float, optional
-            Step lengths as fractions of h. Default TRIPLE_JUMP, which
-            lifts a symmetric second-order map to fourth order.
+            Step lengths as fractions of h. The default is the
+            triple jump, Yoshida's three lengths, which lift a
+            symmetric second-order map to fourth order.
 
         Returns
         -------
@@ -189,7 +191,7 @@ class PartitionedMethod(OneStepMethod):
 
     Provides kick and drift substeps. Each substep evaluates the
     derivatives of H either with the variable it updates taken at its
-    new value (implicit) or at its input (explicit):
+    new value (implicit) or at its input (explicit)::
 
         kick   p* = p - c dH/dq(q, p*)   or   p* = p - c dH/dq(q, p),
         drift  q* = q + c dH/dp(q*, p)   or   q* = q + c dH/dp(q, p).
@@ -397,6 +399,49 @@ def evolve(method, system, z0, h, steps):
     ------
     np.ndarray
         The state after each step, shape (2n,).
+
+    Raises
+    ------
+    TypeError
+        If steps is not an integer.
+    ValueError
+        If steps is not positive.
+
+    Notes
+    -----
+    The checks run when evolve is called rather than when the generator
+    it returns is first advanced, so a bad step count is reported at the
+    call site. The stepping itself lives in _stepped.
+    '''
+    if not isinstance(steps, (int, np.integer)):
+        raise TypeError(
+            f'steps must be an integer, got {type(steps).__name__}')
+    if steps <= 0:
+        raise ValueError(f'steps must be a positive integer, got {steps}')
+    return _stepped(method, system, z0, h, steps)
+
+
+def _stepped(method, system, z0, h, steps):
+    '''
+    Yield the state after each step, the arguments already checked.
+
+    Parameters
+    ----------
+    method : OneStepMethod
+        Method to run.
+    system : HamiltonianSystem
+        System to integrate.
+    z0 : np.ndarray
+        Initial state, shape (2n,).
+    h : float
+        Step size; may be negative.
+    steps : int
+        Number of steps, positive.
+
+    Yields
+    ------
+    np.ndarray
+        The state after each step, shape (2n,).
     '''
     z = np.array(z0, dtype=float)
     E = system.H(z)
@@ -433,6 +478,13 @@ def integrate(method, system, z0, h, steps):
     -------
     np.ndarray
         Final state, shape (2n,).
+
+    Raises
+    ------
+    TypeError
+        If steps is not an integer.
+    ValueError
+        If steps is not positive.
     '''
     z = np.array(z0, dtype=float)
     for state in evolve(method, system, z0, h, steps):

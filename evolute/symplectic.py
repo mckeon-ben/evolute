@@ -32,7 +32,7 @@ class Symplectic(PartitionedMethod):
 
     M_h applies the kick first, and its adjoint M*_h applies the drift
     first. Each map evaluates both derivatives of H at a single point,
-    (q0, p1) for M and (q1, p0) for M*:
+    (q0, p1) for M and (q1, p0) for M*::
 
         M  : p1 = p0 - h dH/dq(q0, p1),  q1 = q0 + h dH/dp(q0, p1),
         M* : q1 = q0 + h dH/dp(q1, p0),  p1 = p0 - h dH/dq(q1, p0),
@@ -41,7 +41,7 @@ class Symplectic(PartitionedMethod):
     M*_{h/2} o M_{h/2} is Stormer-Verlet, mirroring the construction of
     EnergyVolumeSplit. For a separable system both maps are explicit,
     and Stormer-Verlet is kick-drift-kick (velocity Verlet). Applying
-    Stormer-Verlet at the three step lengths of TRIPLE_JUMP gives
+    Stormer-Verlet at the three triple-jump step lengths gives
     Forest-Ruth, fourth order and symplectic, since each factor is.
 
     Parameters
@@ -66,7 +66,7 @@ class Symplectic(PartitionedMethod):
 
     def __init__(self, order=2, xtol=1e-14, maxiter=100):
         if order not in (1, 2, 4):
-            raise ValueError(f'order must be 1, 2 or 4, got {order!r}')
+            raise ValueError(f'order must be 1, 2 or 4, got {order}')
         self.order = order
         self.name = {1: 'Symplectic Euler', 2: 'Störmer-Verlet',
                      4: 'Forest-Ruth'}[order]
@@ -164,8 +164,10 @@ class Symplectic(PartitionedMethod):
 
         Returns
         -------
-        q, p : np.ndarray
-            Updated positions and momenta.
+        q : np.ndarray
+            Updated positions, shape (n,).
+        p : np.ndarray
+            Updated momenta, shape (n,).
         '''
         p = self._kick(system, q, p, h, implicit=True)
         q = self._drift(system, q, p, h)
@@ -186,8 +188,10 @@ class Symplectic(PartitionedMethod):
 
         Returns
         -------
-        q, p : np.ndarray
-            Updated positions and momenta.
+        q : np.ndarray
+            Updated positions, shape (n,).
+        p : np.ndarray
+            Updated momenta, shape (n,).
         '''
         q = self._drift(system, q, p, h, implicit=True)
         p = self._kick(system, q, p, h)
