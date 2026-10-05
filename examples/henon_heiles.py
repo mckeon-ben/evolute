@@ -56,9 +56,12 @@ FOURTH_ORDER_METHODS = {
 
 # One entry per figure column: label, methods, step counts.
 FAMILIES = [
-    ('1st order', FIRST_ORDER_METHODS, [512, 1024, 2048, 4096, 8192]),
-    ('2nd order', SECOND_ORDER_METHODS, [64, 128, 256, 512, 1024]),
-    ('4th order', FOURTH_ORDER_METHODS, [256, 512, 1024, 2048, 4096]),
+    ('1st order', FIRST_ORDER_METHODS,
+     [8192, 16384, 32768, 65536, 131072, 262144]),
+    ('2nd order', SECOND_ORDER_METHODS,
+     [1024, 2048, 4086, 8192, 16384, 32768]),
+    ('4th order', FOURTH_ORDER_METHODS,
+     [128, 256, 512, 1024, 2048, 4096]),
 ]
 
 # Long run for the energy history, every step of it. A step coarser

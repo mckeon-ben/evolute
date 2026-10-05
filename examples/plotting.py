@@ -149,6 +149,48 @@ FALLBACK_MARKERS = ['v', 'P', 'X', '*', '<', '>']
 # Line style by order; other orders are drawn solid.
 LINE_STYLES = {1: '--', 2: '-', 4: '-.'}
 
+# Where a parameter box sits, as a corner of the panel and an offset
+# in points from it, so the gap is the same whatever the panel is
+# shaped like.
+BOX_CORNERS = {
+    'top left': {'xy': (0, 1), 'xytext': (10, -10),
+                 'ha': 'left', 'va': 'top'},
+    'bottom left': {'xy': (0, 0), 'xytext': (10, 10),
+                    'ha': 'left', 'va': 'bottom'},
+}
+
+
+def corner_box(ax, text, corner):
+    '''
+    Name a parameter in a box in one corner of a panel.
+
+    A quantity that is one number for a whole panel goes here rather
+    than on an axis, which is left to the variable it plots. The box
+    is opaque rather than translucent, which EPS cannot store, and its
+    edge is drawn at the width of the frame, which use_layout sets per
+    page and so is read here rather than stored.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Panel to label.
+    text : str
+        Label text.
+    corner : {'top left', 'bottom left'}
+        Key of BOX_CORNERS.
+
+    Returns
+    -------
+    matplotlib.text.Annotation
+        The placed box.
+    '''
+    return ax.annotate(text, xycoords='axes fraction',
+                       textcoords='offset points',
+                       bbox={'boxstyle': 'round,pad=0.4',
+                             'facecolor': 'white', 'edgecolor': '0.7',
+                             'linewidth': plt.rcParams['axes.linewidth']},
+                       **BOX_CORNERS[corner])
+
 
 def resolve(name):
     '''
@@ -534,9 +576,14 @@ def plot(record, panels, filename, layout='default'):
     h_text = f'2^{{{k:.0f}}}' if k == round(k) else f'{h_run:g}'
     # The solution exists at the step times and nowhere between, so
     # the axis is t_n = n h, which also ties it to the z_n above.
-    ax_e.set_xlabel(f'$t_n = n h$, $h = {h_text}$')
+    ax_e.set_xlabel('$t_n = n h$')
     ax_e.set_ylabel(r'$|H(z_n) - H(z_0)| / |H(z_0)|$')
     ax_e.set_ylim(bottom=FLOOR)
+    # The step of the long run, named in a box as the final time is on
+    # the panel below. Top left here: the traces that matter are the
+    # flat ones along the floor, and the panel is read for how far
+    # they stay below the rest, so the room above them is free.
+    corner_box(ax_e, rf'$h = {h_text}$', 'top left')
 
     by_order = {}
     for name, p in panels.items():
@@ -561,9 +608,14 @@ def plot(record, panels, filename, layout='default'):
     ax_c.set_xscale('log', base=2)
     # Extra headroom for the guide labels.
     ax_c.margins(y=0.15)
-    ax_c.set_xlabel(f'$h$, $T = {record["parameters"]["T"]:.4g}$')
+    ax_c.set_xlabel('$h$')
     ax_c.set_ylabel(r'$\|q_N - q(T)\|_2$' if record['reference']['state']
                     else r'Estimated $\|q_N - q(T)\|_2$')
+    # The final time, in the clearest corner of the four: the curves
+    # run from there to the top right, and the guide labels take the
+    # top left.
+    corner_box(ax_c, rf'$T = {record["parameters"]["T"]:.4g}$',
+               'bottom left')
 
     # One legend under the stacked panels, where it covers no data.
     handles, labels = ax_c.get_legend_handles_labels()

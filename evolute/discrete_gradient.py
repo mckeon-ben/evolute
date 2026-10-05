@@ -10,6 +10,15 @@ H(z1) - H(z0) = h gbar . J gbar = 0, since J is skew. Energy is
 therefore conserved exactly, up to solver tolerance, for any smooth H,
 and by any composition of such maps.
 
+That identity is what conserves energy, and it holds however
+inaccurate the individual components of gbar are. A component may
+therefore be left noisy, but it may not be replaced by anything that
+does not telescope: substituting a derivative for a quotient leaks the
+difference between them straight into the energy. The exception is a
+coordinate whose increment is exactly zero, where the quotient would
+divide by zero and both sides of its term vanish, so diverting it
+costs nothing. That case is what dz_min is for.
+
 References
 ----------
 Eidnes, S., 2022. Order theory for discrete gradient methods.
@@ -36,14 +45,16 @@ class DiscreteGradientMethod(ImplicitMethod):
     Parameters
     ----------
     dz_min : float, optional
-        Increments at or below this size are treated as zero: the discrete
-        gradient falls back to the exact gradient there, because the
-        difference quotient is dominated by round-off.
+        Increments at or below this size take the derivative of that
+        coordinate at the midpoint of its step instead of the
+        difference quotient, which divides by the increment. Default
+        0.0, which diverts an increment of exactly zero and nothing
+        else, since any larger threshold costs energy.
     **kwargs
         Passed to ImplicitMethod (xtol).
     '''
 
-    def __init__(self, dz_min=1e-12, **kwargs):
+    def __init__(self, dz_min=0.0, **kwargs):
         super().__init__(**kwargs)
         self.dz_min = dz_min
 
@@ -123,28 +134,18 @@ class ItohAbe(DiscreteGradientMethod):
     reverse : bool, optional
         Sweep the coordinates in reverse order, which gives the adjoint
         map. Default False. Only for order 1.
-    dz_min : float, optional
-        Coordinate increments at or below this size use the i-th
-        partial derivative at the midpoint of that coordinate step
-        instead of the quotient. Default eps^(1/3), about 6e-6, where
-        the round-off of the quotient, ~ eps / |dz_i|, balances the
-        O(|dz_i|^3) error of the fallback. The best threshold is
-        problem-dependent: it beats sqrt(eps) on the Kepler and
-        Henon-Heiles examples and loses to it on the logarithmic
-        potential, whose third derivative is large where the
-        increments are small.
     **kwargs
-        Passed to ImplicitMethod (xtol).
+        Passed to DiscreteGradientMethod (dz_min) and ImplicitMethod
+        (xtol).
 
     Notes
     -----
     - First-, second- or fourth-order accurate in h
-    - Conserves energy exactly, to solver tolerance
+    - Conserves energy exactly, to solver tolerance and round-off
     - Not volume-preserving in general
     '''
 
-    def __init__(self, order=1, reverse=False,
-                 dz_min=np.finfo(float).eps ** (1 / 3), **kwargs):
+    def __init__(self, order=1, reverse=False, **kwargs):
         if order not in (1, 2, 4):
             raise ValueError(f'order must be 1, 2 or 4, got {order}')
         if reverse and order != 1:
@@ -154,7 +155,7 @@ class ItohAbe(DiscreteGradientMethod):
         self.name = {1: 'Itoh-Abe', 2: 'Symmetrized Itoh-Abe',
                      4: 'Itoh-Abe triple jump'}[order]
         self.reverse = reverse
-        super().__init__(dz_min=dz_min, **kwargs)
+        super().__init__(**kwargs)
 
     def step(self, system, z0, h, E=None):
         '''
