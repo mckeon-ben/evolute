@@ -33,10 +33,10 @@ from abc import abstractmethod
 
 import numpy as np
 
-from .integrator import ImplicitMethod
+from .integrator import ResidualMethod
 
 
-class DiscreteGradientMethod(ImplicitMethod):
+class DiscreteGradientMethod(ResidualMethod):
     '''
     Implicit method z1 = z0 + h J gbar(z0, z1) for a discrete gradient.
 
@@ -51,7 +51,7 @@ class DiscreteGradientMethod(ImplicitMethod):
         0.0, which diverts an increment of exactly zero and nothing
         else, since any larger threshold costs energy.
     **kwargs
-        Passed to ImplicitMethod (xtol).
+        Passed to ResidualMethod (xtol).
     '''
 
     def __init__(self, dz_min=0.0, **kwargs):
@@ -135,7 +135,7 @@ class ItohAbe(DiscreteGradientMethod):
         Sweep the coordinates in reverse order, which gives the adjoint
         map. Default False. Only for order 1.
     **kwargs
-        Passed to DiscreteGradientMethod (dz_min) and ImplicitMethod
+        Passed to DiscreteGradientMethod (dz_min) and ResidualMethod
         (xtol).
 
     Notes
@@ -149,8 +149,9 @@ class ItohAbe(DiscreteGradientMethod):
         if order not in (1, 2, 4):
             raise ValueError(f'order must be 1, 2 or 4, got {order}')
         if reverse and order != 1:
-            raise ValueError('reverse must be False unless order is 1, '
-                             f'got order {order}')
+            raise ValueError(
+                'reverse must be False unless order is 1, '
+                f'got order {order}')
         self.order = order
         self.name = {1: 'Itoh-Abe', 2: 'Symmetrized Itoh-Abe',
                      4: 'Itoh-Abe triple jump'}[order]

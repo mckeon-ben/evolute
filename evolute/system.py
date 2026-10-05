@@ -164,9 +164,9 @@ class HamiltonianSystem:
         if n < 2:
             raise ValueError(f'n must be at least 2, got {n}')
         if (T is None) != (grad_T is None):
-            raise ValueError('T and grad_T must be given together, '
-                             f'got T: {T is not None} and '
-                             f'grad_T: {grad_T is not None}')
+            raise ValueError(
+                'T and grad_T must be given together, got only '
+                f'{"T" if T is not None else "grad_T"}')
         self.n = n
         self.V = V
         self.grad_V = grad_V
@@ -206,7 +206,7 @@ class HamiltonianSystem:
         '''
         return z[:self.n], z[self.n:]
 
-    # Full Hamiltonian ------------------------------------------------
+    # Full Hamiltonian
 
     def kinetic(self, q, p):
         '''
@@ -284,7 +284,7 @@ class HamiltonianSystem:
 
     def J(self, z):
         '''
-        Return the structure matrix at z.
+        Evaluate the structure matrix at z.
 
         Canonical, so independent of z; the argument keeps the
         signature open to Poisson systems.
@@ -317,7 +317,7 @@ class HamiltonianSystem:
         '''
         return self.J(z) @ self.grad_H(z)
 
-    # Diagnostics -----------------------------------------------------
+    # Diagnostics
 
     def energy_error(self, z0, z):
         '''

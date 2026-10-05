@@ -3,7 +3,7 @@ Axisymmetric logarithmic potential.
 
 Integrates every method over a fixed time at a sequence of step counts,
 and over a long run at a single step size, then writes the final states
-and the energy histories to a JSON data file.
+and the energy history to a JSON data file.
 
 Cylindrical coordinates, so the kinetic term depends on R and the system
 is not separable.
@@ -40,13 +40,11 @@ ANGULAR_MOMENTUM = 0.2
 R_START = 0.2
 LAUNCH_ANGLE = np.pi / 4.0
 
-# Convergence study. The step counts fall faster than T: a shorter
-# run reaches the asymptotic regime at a coarser step.
+# Final time of the convergence study.
 T = 8.0
 
-# Each order has its own step counts, chosen so that the orders
-# plotting.py prints stay within 0.05 of nominal; the finest count is
-# the yardstick, so N counts are drawn at N - 1 step sizes.
+# Each order has its own step counts; the finest is the yardstick, so
+# N counts are drawn at N - 1 step sizes.
 FIRST_ORDER_METHODS = {
     'Symplectic Euler': Symplectic(order=1),
     'Itoh-Abe': ItohAbe(order=1),
@@ -250,7 +248,7 @@ def run_family(system, z0, label, methods_in_family, n_list):
         Display label of the family.
     methods_in_family : dict
         Display name -> method.
-    n_list : list of int
+    n_list : sequence of int
         Step counts of the convergence study for this family.
 
     Returns

@@ -2,9 +2,10 @@
 Base classes for one-step methods, and the drivers that run them.
 
 Every method maps a state z0 to z1 = Phi_h(z0) through ``step(system,
-z0, h, E)``. PartitionedMethod supplies the kick and drift substeps used
-by the symplectic methods; ImplicitMethod solves a residual equation for
-z1. The Yoshida composition that lifts a symmetric second-order map
+z0, h, E)``. PartitionedMethod supplies the kick and drift substeps
+used by the symplectic methods, each solving for one group of
+variables; ResidualMethod solves F(z0, z1) = 0 for the whole state at
+once. The Yoshida composition that lifts a symmetric second-order map
 to fourth order lives here too, so that every method reaches fourth
 order the same way.
 
@@ -23,12 +24,18 @@ from abc import ABC, abstractmethod
 import numpy as np
 from scipy.optimize import fixed_point, root
 
-# Yoshida's coefficients: they sum to one for consistency, and
-# 2 g1^3 + g2^3 = 0 cancels the leading error of a symmetric map.
+
 _CUBE_ROOT_2 = 2.0 ** (1 / 3)
+
 _TRIPLE_JUMP = (1.0 / (2.0 - _CUBE_ROOT_2),
                 -_CUBE_ROOT_2 / (2.0 - _CUBE_ROOT_2),
                 1.0 / (2.0 - _CUBE_ROOT_2))
+'''
+Yoshida's coefficients for the triple jump.
+
+They sum to one for consistency, and 2 g1^3 + g2^3 = 0 cancels the
+leading error of a symmetric map.
+'''
 
 
 class OneStepMethod(ABC):
@@ -299,9 +306,13 @@ class PartitionedMethod(OneStepMethod):
         return self._fixed_point(drift, q) if implicit else drift(q)
 
 
-class ImplicitMethod(OneStepMethod):
+class ResidualMethod(OneStepMethod):
     '''
     Method defined by a residual F(z0, z1) = 0, solved with SciPy.
+
+    The residual is over the whole state, so one solve advances every
+    variable at once, where a PartitionedMethod solves for one group
+    at a time.
 
     The solve uses MINPACK's hybrid method from an explicit Euler
     predictor.
@@ -364,7 +375,8 @@ class ImplicitMethod(OneStepMethod):
         RuntimeError
             If the solver fails with a residual above 1e-10.
         '''
-        guess = z0 + h * system.vector_field(z0)   # explicit Euler
+        # Explicit Euler predictor.
+        guess = z0 + h * system.vector_field(z0)
         sol = root(lambda z1: self.residual(system, z0, z1, h), guess,
                    method='hybr', options={'xtol': self.xtol})
         # MINPACK reports "no further improvement" once it hits round-off

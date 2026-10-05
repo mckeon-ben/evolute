@@ -187,10 +187,7 @@ gives the substeps in full.
 
 - Systems must have the form above, with `n >= 2`.
 - The change of variables is singular where `p1 = p2 = 0`. A step that
-  reaches it raises `ValueError`; reduce the step size.
-- The scalar equations in each substep are contractions only while
-  `h |dF/dq| / rho < 1`, with `F = T + V` and
-  `rho = sqrt(p1^2 + p2^2)`.
+  reaches it raises `ValueError`.
 - The implicit solves need a small enough step. A solve that does not
   converge raises `RuntimeError`: the scalar equations of
   `EnergyVolumeSplit`, the root solve of `ItohAbe`, and, for a
@@ -199,10 +196,6 @@ gives the substeps in full.
 - The momentum pair is fixed for the whole run. Switching pairs
   adaptively to avoid the singular set would break volume
   preservation.
-- `integrate` and `evolve` take the target energy from the initial
-  state and pass it to every step. Recomputing it each step would make
-  the rounding of one step the target of the next; the energy error
-  would grow like the square root of the number of steps.
 
 ## Examples
 
@@ -216,13 +209,6 @@ the energy error:
 | `kepler.py`                | Planar Kepler problem                         |
 | `henon_heiles.py`          | Hénon–Heiles system                           |
 | `logarithmic_potential.py` | Logarithmic potential, `n = 3`, not separable |
-
-Each script runs three families, one per order, over step counts of
-their own. Each order enters its asymptotic regime at a step of its
-own — the first order latest, and `ItohAbe` latest of the three
-classes — and leaves it again at the round-off floor, which a
-fourth-order method reaches four times faster than a second-order one,
-so no single list of step counts serves them all.
 
 `plotting.py` turns the data files into error estimates, observed
 orders and figures, each pairing the energy error against time with
@@ -267,7 +253,7 @@ evolute/
     __init__.py                 public API
     system.py                   HamiltonianSystem
     integrator.py               OneStepMethod, PartitionedMethod,
-                                ImplicitMethod, integrate, evolve
+                                ResidualMethod, integrate, evolve
     energy_volume_split.py      EnergyVolumeSplit
     symplectic.py               Symplectic (baseline)
     discrete_gradient.py        ItohAbe (baseline)

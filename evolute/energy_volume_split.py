@@ -2,7 +2,7 @@
 Energy- and volume-preserving splitting method.
 
 For H = (p1^2 + p2^2)/2 + F(q, p3, ..., pn), F = T + V, n >= 2, one
-step is the conjugation  Phi = Psi^{-1} o M o Psi, where:
+step is the conjugation Phi = Psi^{-1} o M o Psi, where:
 
 Psi : (q, p) -> (E, phi, q, p3, ..., pn),  E = H(q, p),
       phi = atan2(p2, p1).
@@ -22,14 +22,13 @@ M   : holds E fixed and composes symplectic Euler substeps, each acting
 
 Hence Phi conserves H exactly (to round-off) and preserves phase-space
 volume exactly; it is not symplectic. The first-order method is M; the
-symmetric second-order method is  M*_{h/2} o M_{h/2}, with M* the
+symmetric second-order method is M*_{h/2} o M_{h/2}, with M* the
 adjoint (substeps reversed, each replaced by its adjoint Euler
 variant); the fourth-order method applies that symmetric map at the
 three triple-jump step lengths. Energy and volume are inherited by
 any such composition, since every factor conserves them.
 
-The change of variables is singular where p1 = p2 = 0, and the scalar
-equations are contractions only while h |dF/dq| / rho < 1.
+The change of variables is singular where p1 = p2 = 0.
 
 References
 ----------
@@ -202,7 +201,7 @@ class EnergyVolumeSplit(OneStepMethod):
         return np.concatenate([q, [rho * np.cos(phi), rho * np.sin(phi)],
                                pr])
 
-    # Change of variables ---------------------------------------------
+    # Change of variables
 
     @staticmethod
     def _r2(system, E, q, pr):
@@ -258,7 +257,7 @@ class EnergyVolumeSplit(OneStepMethod):
         if r2 <= 0.0:
             raise ValueError(
                 'Energy-volume split reached the singular set '
-                'p1 = p2 = 0; reduce the step size'
+                'p1 = p2 = 0'
             )
         return np.sqrt(r2)
 
@@ -314,7 +313,7 @@ class EnergyVolumeSplit(OneStepMethod):
         dT_dq, dT_dp = system.grad_T(q, pr)
         return system.grad_V(q) + dT_dq, dT_dp
 
-    # M: symplectic Euler, implicit in phi (resp. p') -----------------
+    # M: symplectic Euler, implicit in phi (resp. p')
 
     def _forward(self, system, E, phi, q, pr, h):
         '''
@@ -375,7 +374,7 @@ class EnergyVolumeSplit(OneStepMethod):
             q[2:] += h * self._grad_F(system, q, pr)[1]
         return phi
 
-    # M*: adjoint, substeps reversed, implicit in q_k -----------------
+    # M*: adjoint, substeps reversed, implicit in q_k
 
     def _adjoint(self, system, E, phi, q, pr, h):
         '''

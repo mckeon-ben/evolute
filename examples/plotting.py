@@ -13,10 +13,9 @@ run. Each family carries 'label', its own 'dt' (its step sizes),
 'method_order' and 'methods', which maps each display name to 'class',
 'order', 'time' (seconds taken), 'final_state', one final state per
 entry of 'dt', and 'energy_error', one value per entry of
-'energy_time'. Each family has its own 'dt' because each order enters
-its asymptotic regime at a step of its own and leaves it at the
-round-off floor, which a fourth-order method reaches four times
-faster.
+'energy_time'. Each family has its own 'dt' because a fourth-order
+error falls four times as many decades as a first-order one over the
+same range of steps.
 '''
 
 import argparse
