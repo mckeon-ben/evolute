@@ -37,6 +37,25 @@ They sum to one for consistency, and 2 g1^3 + g2^3 = 0 cancels the
 leading error of a symmetric map.
 '''
 
+_RESIDUAL_MAX = 1e-10
+'''
+Largest residual a step may be left with.
+
+Comparable to the local error of the coarsest step worth taking, and
+far above the round-off floor of the residual itself, which is the
+round-off of z1 - z0 and so of order eps |z0|.
+'''
+
+_XTOL_FLOOR = 1e-12
+'''
+Solver tolerance to fall back on when the requested one stalls.
+
+The tightest tolerance MINPACK reaches without reporting a stall at
+the finest steps these methods are run at. It returns the same
+residual as a tighter request does, having converged rather than
+given up.
+'''
+
 
 class OneStepMethod(ABC):
     '''
@@ -320,8 +339,8 @@ class ResidualMethod(OneStepMethod):
     Parameters
     ----------
     xtol : float, optional
-        Solver tolerance. Default 1e-14: SciPy's own default (about
-        1.5e-8) is far too loose here, since for an energy-conserving
+        Solver tolerance. Default 1e-14: SciPy's own default, about
+        1.5e-8, is far too loose here, since for an energy-conserving
         method the solver tolerance sets the observed energy error.
     '''
 
@@ -373,17 +392,26 @@ class ResidualMethod(OneStepMethod):
         Raises
         ------
         RuntimeError
-            If the solver fails with a residual above 1e-10.
+            If the solver fails with a residual above _RESIDUAL_MAX,
+            after a second attempt at _XTOL_FLOOR.
         '''
+        def solve(xtol, start):
+            return root(lambda z1: self.residual(system, z0, z1, h),
+                        start, method='hybr', options={'xtol': xtol})
+
         # Explicit Euler predictor.
-        guess = z0 + h * system.vector_field(z0)
-        sol = root(lambda z1: self.residual(system, z0, z1, h), guess,
-                   method='hybr', options={'xtol': self.xtol})
-        # MINPACK reports "no further improvement" once it hits round-off
-        # below xtol; that is a converged solve, so judge by the residual.
-        if not sol.success and np.max(np.abs(sol.fun)) > 1e-10:
+        sol = solve(self.xtol, z0 + h * system.vector_field(z0))
+        # MINPACK reports no progress once it hits round-off below
+        # xtol, on a quarter of the steps at a fine h, so judge by the
+        # residual and retry at a reachable tolerance if it is large.
+        if not sol.success and np.max(np.abs(sol.fun)) > _RESIDUAL_MAX:
+            sol = solve(_XTOL_FLOOR, sol.x)
+        residual = np.max(np.abs(sol.fun))
+        if residual > _RESIDUAL_MAX:
             raise RuntimeError(
-                f'{self.name} solver failed to converge: {sol.message}')
+                f'{self.name} solver failed to converge at h = {h:.3e}, '
+                f'residual {residual:.2e} against {_RESIDUAL_MAX:.0e}: '
+                f'{sol.message}')
         return sol.x
 
 
