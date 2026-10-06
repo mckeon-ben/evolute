@@ -41,19 +41,11 @@ _RESIDUAL_MAX = 1e-10
 '''
 Largest residual a step may be left with.
 
-Comparable to the local error of the coarsest step worth taking, and
-far above the round-off floor of the residual itself, which is the
-round-off of z1 - z0 and so of order eps |z0|.
-'''
-
-_XTOL_FLOOR = 1e-12
-'''
-Solver tolerance to fall back on when the requested one stalls.
-
-The tightest tolerance MINPACK reaches without reporting a stall at
-the finest steps these methods are run at. It returns the same
-residual as a tighter request does, having converged rather than
-given up.
+Just under the residual the explicit Euler predictor leaves unaided,
+which is 1.15e-10 at the finest step these methods are run at, so a
+step that was never solved cannot pass. A solved step lands six orders
+below it, on the round-off floor of the residual itself, which is the
+round-off of z1 - z0 and so of order eps |z0| whatever the step.
 '''
 
 
@@ -392,20 +384,15 @@ class ResidualMethod(OneStepMethod):
         Raises
         ------
         RuntimeError
-            If the solver fails with a residual above _RESIDUAL_MAX,
-            after a second attempt at _XTOL_FLOOR.
+            If the solver leaves a residual above _RESIDUAL_MAX.
         '''
-        def solve(xtol, start):
-            return root(lambda z1: self.residual(system, z0, z1, h),
-                        start, method='hybr', options={'xtol': xtol})
-
         # Explicit Euler predictor.
-        sol = solve(self.xtol, z0 + h * system.vector_field(z0))
-        # MINPACK reports no progress once it hits round-off below
-        # xtol, on a quarter of the steps at a fine h, so judge by the
-        # residual and retry at a reachable tolerance if it is large.
-        if not sol.success and np.max(np.abs(sol.fun)) > _RESIDUAL_MAX:
-            sol = solve(_XTOL_FLOOR, sol.x)
+        sol = root(lambda z1: self.residual(system, z0, z1, h),
+                   z0 + h * system.vector_field(z0), method='hybr',
+                   options={'xtol': self.xtol})
+        # MINPACK reports no progress once it reaches round-off below
+        # xtol, on nearly half the steps at a fine h, so judge the solve
+        # by the residual it left rather than by what it reports.
         residual = np.max(np.abs(sol.fun))
         if residual > _RESIDUAL_MAX:
             raise RuntimeError(

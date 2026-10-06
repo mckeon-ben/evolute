@@ -14,10 +14,14 @@ That identity is what conserves energy, and it holds however
 inaccurate the individual components of gbar are. A component may
 therefore be left noisy, but it may not be replaced by anything that
 does not telescope: substituting a derivative for a quotient leaks the
-difference between them straight into the energy. The exception is a
-coordinate whose increment is exactly zero, where the quotient would
-divide by zero and both sides of its term vanish, so diverting it
-costs nothing. That case is what dz_min is for.
+difference between them straight into the energy. The leak is cubic in
+the increment, though, so a coordinate whose increment is small enough
+may be diverted for less than the energy already costs in round-off,
+and one whose increment is exactly zero must be, since the quotient
+would divide by zero. Both cases are what dz_min is for, and it is the
+solver rather than the gradient that needs them: the quotient's value
+is usable far below the point at which its derivative, which is what
+the solver builds its Jacobian from, is not.
 
 References
 ----------
@@ -36,6 +40,24 @@ import numpy as np
 from .integrator import ResidualMethod
 
 
+_DZ_MIN = np.sqrt(np.finfo(float).eps)
+'''
+Increment below which the difference quotient is diverted.
+
+Both sides of the choice are powers of the threshold. Diverting costs
+energy: the midpoint derivative differs from the quotient by the
+midpoint rule's error, and multiplying by the increment makes the leak
+cubic, so a threshold of sqrt(eps) leaks eps^(3/2) / 24 per firing, nine
+orders below the round-off the energy already carries. Keeping the
+quotient costs conditioning: its value is only mildly wrong, carrying a
+relative error of eps / dz, but the solver differentiates it, and that
+derivative carries eps / dz^2, which is noise of order one by the time
+dz reaches sqrt(eps). So sqrt(eps) is where the quotient stops being
+worth solving against and still long before diverting it can be
+measured.
+'''
+
+
 class DiscreteGradientMethod(ResidualMethod):
     '''
     Implicit method z1 = z0 + h J gbar(z0, z1) for a discrete gradient.
@@ -48,13 +70,12 @@ class DiscreteGradientMethod(ResidualMethod):
         Increments at or below this size take the derivative of that
         coordinate at the midpoint of its step instead of the
         difference quotient, which divides by the increment. Default
-        0.0, which diverts an increment of exactly zero and nothing
-        else, since any larger threshold costs energy.
+        _DZ_MIN.
     **kwargs
         Passed to ResidualMethod (xtol).
     '''
 
-    def __init__(self, dz_min=0.0, **kwargs):
+    def __init__(self, dz_min=_DZ_MIN, **kwargs):
         super().__init__(**kwargs)
         self.dz_min = dz_min
 
