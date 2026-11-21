@@ -7,7 +7,7 @@ central method, `EnergyVolumeSplit`, conserves energy and preserves
 phase-space volume exactly, for systems with two or more degrees of
 freedom. It is not symplectic, which is what allows energy and volume
 preservation at once. Symplectic and discrete gradient methods are
-included as comparison baselines, alongside scripts for three test
+included as comparison baselines, alongside scripts for four test
 problems.
 
 ## Contents
@@ -208,6 +208,7 @@ the energy error:
 | -------------------------- | --------------------------------------------- |
 | `kepler.py`                | Planar Kepler problem                         |
 | `henon_heiles.py`          | Hénon–Heiles system                           |
+| `spring_pendulum.py`       | Spring pendulum with an attracting center     |
 | `logarithmic_potential.py` | Logarithmic potential, `n = 3`, not separable |
 
 `plotting.py` turns the data files into error estimates, observed
@@ -258,7 +259,7 @@ evolute/
     symplectic.py               Symplectic (baseline)
     discrete_gradient.py        ItohAbe (baseline)
 examples/
-    <test problem>.py           three simulation scripts
+    <test problem>.py           four simulation scripts
     plotting.py                 error estimates and figures
 ```
 
