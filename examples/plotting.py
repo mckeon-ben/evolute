@@ -148,15 +148,24 @@ FALLBACK_MARKERS = ['v', 'P', 'X', '*', '<', '>']
 # Line style by order; other orders are drawn solid.
 LINE_STYLES = {1: '--', 2: '-', 4: '-.'}
 
-# Where a parameter box sits, as a corner of the panel and an offset
-# in points from it, so the gap is the same whatever the panel is
-# shaped like.
+# Where a parameter box sits, as a corner of the panel and the
+# direction it is offset in. BOX_GAP sets how far.
 BOX_CORNERS = {
-    'top left': {'xy': (0, 1), 'xytext': (10, -10),
+    'top left': {'xy': (0, 1), 'offset': (1, -1),
                  'ha': 'left', 'va': 'top'},
-    'bottom left': {'xy': (0, 0), 'xytext': (10, 10),
+    'bottom left': {'xy': (0, 0), 'offset': (1, 1),
                     'ha': 'left', 'va': 'bottom'},
 }
+
+# Offset from the corner, in font-size units, which is what the box's
+# own pad is measured in. An offset fixed in points would be the same
+# on every page while the lettering is not, so the journal layout at
+# 8 point would carry the widest gap of the three and the smallest
+# box. The offset places the text, and the box reaches back towards
+# the corner by its pad, so at 0.8 the drawn edge sits 0.4 of the font
+# size clear of the corner: the same as the padding inside it, on
+# every page.
+BOX_GAP = 0.8
 
 
 def corner_box(ax, text, corner):
@@ -165,9 +174,10 @@ def corner_box(ax, text, corner):
 
     A quantity that is one number for a whole panel goes here rather
     than on an axis, which is left to the variable it plots. The box
-    is opaque rather than translucent, which EPS cannot store, and its
-    edge is drawn at the width of the frame, which use_layout sets per
-    page and so is read here rather than stored.
+    is opaque rather than translucent, which EPS cannot store. Its
+    edge is drawn at the width of the frame and its gap from the
+    corner is set by the font size, both of which use_layout sets per
+    page and so are read here rather than stored.
 
     Parameters
     ----------
@@ -183,12 +193,16 @@ def corner_box(ax, text, corner):
     matplotlib.text.Annotation
         The placed box.
     '''
+    spec = dict(BOX_CORNERS[corner])
+    sx, sy = spec.pop('offset')
+    gap = BOX_GAP * plt.rcParams['font.size']
     return ax.annotate(text, xycoords='axes fraction',
                        textcoords='offset points',
+                       xytext=(sx * gap, sy * gap),
                        bbox={'boxstyle': 'round,pad=0.4',
                              'facecolor': 'white', 'edgecolor': '0.7',
                              'linewidth': plt.rcParams['axes.linewidth']},
-                       **BOX_CORNERS[corner])
+                       **spec)
 
 
 def resolve(name):
@@ -578,6 +592,11 @@ def plot(record, panels, filename, layout='default'):
     ax_e.set_xlabel('$t_n = n h$')
     ax_e.set_ylabel(r'$|H(z_n) - H(z_0)| / |H(z_0)|$')
     ax_e.set_ylim(bottom=FLOOR)
+    # No x margin: the traces are dense enough that the default
+    # padding reads as the run stopping short of its final time. The
+    # left edge is 0 rather than t_1, which is the same place to
+    # within a step but keeps a tick there.
+    ax_e.set_xlim(0.0, t[-1])
     # The step of the long run, named in a box as the final time is on
     # the panel below. Top left here: the traces that matter are the
     # flat ones along the floor, and the panel is read for how far

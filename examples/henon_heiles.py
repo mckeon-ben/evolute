@@ -65,7 +65,7 @@ FAMILIES = [
 # Long run for the energy history, every step of it. A step coarser
 # than the convergence study needs lifts the symplectic energy error
 # clear of the round-off floor the discrete-gradient methods sit on.
-ENERGY_T = 512.0
+ENERGY_T = 1024.0
 ENERGY_H = T / 256
 ENERGY_STEPS = round(ENERGY_T / ENERGY_H)
 ENERGY_TIME = ENERGY_H * np.arange(1, ENERGY_STEPS + 1)
