@@ -24,7 +24,7 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         'data')
 DATA_FILE = os.path.join(DATA_DIR, 'kepler.json')
 
-# Names the figure.
+# Identifies the run in the data file and the printed report.
 EXPERIMENT = 'Kepler problem'
 
 # Gravitational parameter and initial state (q1, q2, p1, p2).
@@ -38,21 +38,21 @@ T = 8.0
 # N counts are drawn at N - 1 step sizes.
 FIRST_ORDER_METHODS = {
     'Symplectic Euler': Symplectic(order=1),
-    'Itoh-Abe': ItohAbe(order=1),
+    'Itoh–Abe': ItohAbe(order=1),
     'Energy-volume split': EnergyVolumeSplit(order=1),
 }
 SECOND_ORDER_METHODS = {
-    'Störmer-Verlet': Symplectic(order=2),
-    'Symmetrized Itoh-Abe': ItohAbe(order=2),
+    'Störmer–Verlet': Symplectic(order=2),
+    'Symmetrized Itoh–Abe': ItohAbe(order=2),
     'Symmetric energy-volume split': EnergyVolumeSplit(order=2),
 }
 FOURTH_ORDER_METHODS = {
-    'Forest-Ruth': Symplectic(order=4),
-    'Itoh-Abe triple jump': ItohAbe(order=4),
+    'Forest–Ruth': Symplectic(order=4),
+    'Itoh–Abe triple jump': ItohAbe(order=4),
     'Energy-volume split triple jump': EnergyVolumeSplit(order=4),
 }
 
-# One entry per figure column: label, methods, step counts.
+# One entry per order: label, methods, step counts.
 FAMILIES = [
     ('1st order', FIRST_ORDER_METHODS,
      [16384, 32768, 65536, 131072, 262144, 524288]),
@@ -62,9 +62,8 @@ FAMILIES = [
      [256, 512, 1024, 2048, 4096, 8192]),
 ]
 
-# Long run for the energy history, every step of it. A step coarser
-# than the convergence study needs lifts the symplectic energy error
-# clear of the round-off floor the discrete-gradient methods sit on.
+# Long run for the energy history, every step of it. A coarser step
+# lifts the symplectic energy error clear of the round-off floor.
 ENERGY_T = 1024.0
 ENERGY_H = T / 256
 ENERGY_STEPS = round(ENERGY_T / ENERGY_H)
@@ -148,7 +147,7 @@ def _eccentric_anomaly(M, e, xtol=1e-15, maxiter=50):
     '''
     Solve Kepler's equation M = E - e sin E by Newton's method.
 
-    The left-hand side has derivative 1 - e cos E, which is at least
+    The right-hand side has derivative 1 - e cos E, which is at least
     1 - e > 0 for an ellipse, so the equation has one root and Newton's
     method converges quadratically: from the first-order guess
     E = M + e sin M it reaches round-off in a handful of iterations.

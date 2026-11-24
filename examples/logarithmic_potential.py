@@ -5,8 +5,8 @@ Integrates every method over a fixed time at a sequence of step counts,
 and over a long run at a single step size, then writes the final states
 and the energy history to a JSON data file.
 
-Cylindrical coordinates, so the kinetic term depends on R and the system
-is not separable.
+Three degrees of freedom, in Cartesian coordinates, and the order of
+those coordinates matters; see logarithmic() below.
 '''
 
 import json
@@ -27,14 +27,15 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         'data')
 DATA_FILE = os.path.join(DATA_DIR, 'logarithmic_potential.json')
 
-# Names the figure.
+# Identifies the run in the data file and the printed report.
 EXPERIMENT = 'Logarithmic potential'
 
 # Core radius and axis ratio of the potential.
 CORE_RADIUS = 0.0
 FLATTENING = 0.9
 
-# Energy, angular momentum, starting radius and launch angle in radians.
+# Energy, azimuthal momentum, starting radius and launch angle in
+# radians.
 ENERGY = -0.8
 ANGULAR_MOMENTUM = 0.2
 R_START = 0.2
@@ -47,21 +48,21 @@ T = 8.0
 # N counts are drawn at N - 1 step sizes.
 FIRST_ORDER_METHODS = {
     'Symplectic Euler': Symplectic(order=1),
-    'Itoh-Abe': ItohAbe(order=1),
+    'Itoh–Abe': ItohAbe(order=1),
     'Energy-volume split': EnergyVolumeSplit(order=1),
 }
 SECOND_ORDER_METHODS = {
-    'Störmer-Verlet': Symplectic(order=2),
-    'Symmetrized Itoh-Abe': ItohAbe(order=2),
+    'Störmer–Verlet': Symplectic(order=2),
+    'Symmetrized Itoh–Abe': ItohAbe(order=2),
     'Symmetric energy-volume split': EnergyVolumeSplit(order=2),
 }
 FOURTH_ORDER_METHODS = {
-    'Forest-Ruth': Symplectic(order=4),
-    'Itoh-Abe triple jump': ItohAbe(order=4),
+    'Forest–Ruth': Symplectic(order=4),
+    'Itoh–Abe triple jump': ItohAbe(order=4),
     'Energy-volume split triple jump': EnergyVolumeSplit(order=4),
 }
 
-# One entry per figure column: label, methods, step counts.
+# One entry per order: label, methods, step counts.
 FAMILIES = [
     ('1st order', FIRST_ORDER_METHODS,
      [16384, 32768, 65536, 131072, 262144, 524288]),
@@ -71,22 +72,29 @@ FAMILIES = [
      [1024, 2048, 4096, 8192, 16384, 32768]),
 ]
 
-# Long run for the energy history, every step of it. The step is as
-# coarse as the split allows: any coarser and it reaches p1 = p2 = 0
-# at a turning point of the meridional motion.
-ENERGY_T = 128.0
-ENERGY_H = T / 4096
+# Long run for the energy history, every step of it. A coarser step
+# lifts the symplectic energy error clear of the round-off floor.
+ENERGY_T = 1024.0
+ENERGY_H = T / 256
 ENERGY_STEPS = round(ENERGY_T / ENERGY_H)
 ENERGY_TIME = ENERGY_H * np.arange(1, ENERGY_STEPS + 1)
 
 
 def logarithmic(rc=CORE_RADIUS, qf=FLATTENING):
     '''
-    Build the logarithmic potential in cylindrical coordinates.
+    Build the logarithmic potential in Cartesian coordinates.
 
-    State (R, z, phi, pR, pz, Lz); the pair (pR, pz) is isotropic, and
-    T = Lz^2 / (2 R^2) depends on R, so the system is not separable.
-    phi is cyclic.
+    State (x, y, z, px, py, pz). The potential is axisymmetric about
+    the z axis and flattened by qf, so the exact flow conserves the
+    azimuthal momentum Lz = x py - y px alongside the energy.
+
+    The coordinate order matters, because it fixes which momenta form
+    the distinguished pair. For (px, py) the identity
+    px^2 + py^2 = pR^2 + Lz^2 / R^2 holds, so the pair is bounded away
+    from the origin by Lz^2 / R^2 at any finite radius. Ordering the
+    coordinates so that pz took the place of py would put the
+    meridional momentum in the pair instead, and that vanishes wherever
+    the orbit reaches its zero-velocity curve.
 
     Parameters
     ----------
@@ -98,59 +106,30 @@ def logarithmic(rc=CORE_RADIUS, qf=FLATTENING):
     Returns
     -------
     HamiltonianSystem
-        Non-separable system with n = 3.
+        System with n = 3.
     '''
 
     def V(q):
-        R, z = q[0], q[1]
-        return 0.5 * np.log(rc * rc + R * R + z * z / (qf * qf))
+        x, y, z = q[0], q[1], q[2]
+        return 0.5 * np.log(rc * rc + x * x + y * y + z * z / (qf * qf))
 
     def grad_V(q):
-        R, z = q[0], q[1]
-        D = rc * rc + R * R + z * z / (qf * qf)
-        return np.array([R / D, z / (qf * qf * D), 0.0])
+        x, y, z = q[0], q[1], q[2]
+        D = rc * rc + x * x + y * y + z * z / (qf * qf)
+        return np.array([x / D, y / D, z / (qf * qf * D)])
 
-    def T(q, p_rest):
-        return 0.5 * p_rest[0] ** 2 / q[0] ** 2
-
-    def grad_T(q, p_rest):
-        L, R = p_rest[0], q[0]
-        return np.array([-L * L / R ** 3, 0.0, 0.0]), np.array([L / R ** 2])
-
-    return HamiltonianSystem(3, V, grad_V, T, grad_T, name='Logarithmic')
-
-
-def _cartesian(z):
-    '''
-    The state in the coordinates the error is measured in.
-
-    This system is integrated in cylindrical coordinates, so the state
-    is converted. Every example takes this step, so that the machinery
-    below it does not vary between them.
-
-    Parameters
-    ----------
-    z : np.ndarray
-        State (R, z, phi, pR, pz, Lz).
-
-    Returns
-    -------
-    np.ndarray
-        State (x, y, z, px, py, pz).
-    '''
-    R, zz, phi, pR, pz, L = z
-    c, s = np.cos(phi), np.sin(phi)
-    return np.array([R * c, R * s, zz,
-                     pR * c - L / R * s, pR * s + L / R * c, pz])
+    return HamiltonianSystem(3, V, grad_V, name='Logarithmic')
 
 
 def launch(rc=CORE_RADIUS, qf=FLATTENING):
     '''
-    Initial state in cylindrical coordinates.
+    Initial state in Cartesian coordinates.
 
-    Places the orbit at (R, z, phi) = (R_START, 0, 0) with angular
+    Places the orbit at (x, y, z) = (R_START, 0, 0) with azimuthal
     momentum ANGULAR_MOMENTUM and scales the meridional momentum onto
-    H = ENERGY.
+    H = ENERGY. On the x axis the azimuthal momentum is carried by py
+    alone, and the meridional momentum by (px, pz) at LAUNCH_ANGLE to
+    the plane.
 
     Parameters
     ----------
@@ -162,7 +141,7 @@ def launch(rc=CORE_RADIUS, qf=FLATTENING):
     Returns
     -------
     np.ndarray
-        State (R, z, phi, pR, pz, Lz).
+        State (x, y, z, px, py, pz).
 
     Raises
     ------
@@ -177,7 +156,28 @@ def launch(rc=CORE_RADIUS, qf=FLATTENING):
         raise ValueError('launch: point outside the zero-velocity curve')
     rho = np.sqrt(r2)
     return np.array([R_START, 0.0, 0.0, rho * np.cos(LAUNCH_ANGLE),
-                     rho * np.sin(LAUNCH_ANGLE), L])
+                     L / R_START, rho * np.sin(LAUNCH_ANGLE)])
+
+
+def _cartesian(z):
+    '''
+    The state in the coordinates the error is measured in.
+
+    This system is integrated in Cartesian coordinates already, so the
+    state passes through unchanged. Every example takes this step, so
+    that the machinery below it does not vary between them.
+
+    Parameters
+    ----------
+    z : np.ndarray
+        State, shape (2n,).
+
+    Returns
+    -------
+    np.ndarray
+        The same state.
+    '''
+    return z
 
 
 def final_state(method, system, z0, T, N):

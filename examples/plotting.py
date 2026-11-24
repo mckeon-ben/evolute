@@ -131,6 +131,7 @@ MARKERS = {
     'Symplectic': 'o',
     'ItohAbe': 's',
     'EnergyVolumeSplit': 'D',
+    'McLachlanQuispel': '^',
 }
 
 # Okabe-Ito colorblind-safe palette.
@@ -157,14 +158,7 @@ BOX_CORNERS = {
                     'ha': 'left', 'va': 'bottom'},
 }
 
-# Offset from the corner, in font-size units, which is what the box's
-# own pad is measured in. An offset fixed in points would be the same
-# on every page while the lettering is not, so the journal layout at
-# 8 point would carry the widest gap of the three and the smallest
-# box. The offset places the text, and the box reaches back towards
-# the corner by its pad, so at 0.8 the drawn edge sits 0.4 of the font
-# size clear of the corner: the same as the padding inside it, on
-# every page.
+# Offset from the corner, in font-size units.
 BOX_GAP = 0.8
 
 
@@ -506,7 +500,7 @@ def step_label(h):
     Returns
     -------
     str
-        Label such as '2^-9', or two significant figures otherwise.
+        Label such as '2^-9', or '1.23e-04' otherwise.
     '''
     k = np.log2(h)
     return f'2^{round(k):d}' if abs(k - round(k)) < 1e-9 else f'{h:.2e}'
@@ -587,20 +581,10 @@ def plot(record, panels, filename, layout='default'):
     h_run = record['parameters']['energy_h']
     k = np.log2(h_run)
     h_text = f'2^{{{k:.0f}}}' if k == round(k) else f'{h_run:g}'
-    # The solution exists at the step times and nowhere between, so
-    # the axis is t_n = n h, which also ties it to the z_n above.
     ax_e.set_xlabel('$t_n = n h$')
     ax_e.set_ylabel(r'$|H(z_n) - H(z_0)| / |H(z_0)|$')
     ax_e.set_ylim(bottom=FLOOR)
-    # No x margin: the traces are dense enough that the default
-    # padding reads as the run stopping short of its final time. The
-    # left edge is 0 rather than t_1, which is the same place to
-    # within a step but keeps a tick there.
     ax_e.set_xlim(0.0, t[-1])
-    # The step of the long run, named in a box as the final time is on
-    # the panel below. Top left here: the traces that matter are the
-    # flat ones along the floor, and the panel is read for how far
-    # they stay below the rest, so the room above them is free.
     corner_box(ax_e, rf'$h = {h_text}$', 'top left')
 
     by_order = {}
@@ -629,9 +613,6 @@ def plot(record, panels, filename, layout='default'):
     ax_c.set_xlabel('$h$')
     ax_c.set_ylabel(r'$\|q_N - q(T)\|_2$' if record['reference']['state']
                     else r'Estimated $\|q_N - q(T)\|_2$')
-    # The final time, in the clearest corner of the four: the curves
-    # run from there to the top right, and the guide labels take the
-    # top left.
     corner_box(ax_c, rf'$T = {record["parameters"]["T"]:.4g}$',
                'bottom left')
 

@@ -1,9 +1,9 @@
 '''
 Base classes for one-step methods, and the drivers that run them.
 
-Every method maps a state z0 to z1 = Phi_h(z0) through ``step(system,
-z0, h, E)``. PartitionedMethod supplies the kick and drift substeps
-used by the symplectic methods, each solving for one group of
+Every method maps a state z0 to z1 = Phi_h(z0) through
+step(system, z0, h, E). PartitionedMethod supplies the kick and drift
+substeps used by the symplectic methods, each solving for one group of
 variables; ResidualMethod solves F(z0, z1) = 0 for the whole state at
 once. The Yoshida composition that lifts a symmetric second-order map
 to fourth order lives here too, so that every method reaches fourth
@@ -11,7 +11,7 @@ order the same way.
 
 The target energy E is an optional argument of every step, used by an
 energy-conserving method and ignored by the others, so that one driver
-runs them all. The drivers are ``integrate()`` and ``evolve()``.
+runs them all. The drivers are integrate() and evolve().
 
 References
 ----------
@@ -53,30 +53,17 @@ class OneStepMethod(ABC):
     '''
     One-step map z0 -> Phi_h(z0).
 
-    Subclasses set the attributes below and implement ``step()``. One
-    that comes in several orders implements the first-order map
-    ``_first()`` and the symmetric map ``_symmetric()``, and routes
-    ``step()`` through ``_by_order()``.
+    Subclasses set the attributes below and implement step(). One that
+    comes in several orders implements the first-order map _first()
+    and the symmetric map _symmetric(), and routes step() through
+    _by_order().
 
     Attributes
     ----------
     name : str
-        Display name, used in labels and titles.
+        Display name, shown in solver messages.
     order : int
         Classical order of accuracy.
-
-    Examples
-    --------
-    Concrete methods are instantiated directly rather than through the
-    base class:
-
-    >>> from evolute import EnergyVolumeSplit, HamiltonianSystem
-    >>> system = HamiltonianSystem(2, V=lambda q: 0.5 * (q @ q),
-    ...                            grad_V=lambda q: q)
-    >>> method = EnergyVolumeSplit()
-    >>> z = method.step(system, np.array([1., 0., 0., 1.]), 0.1)
-    >>> method.name, method.order
-    ('Symmetric energy-volume split', 2)
     '''
 
     @abstractmethod
@@ -209,15 +196,15 @@ class PartitionedMethod(OneStepMethod):
 
     Provides kick and drift substeps. Each substep evaluates the
     derivatives of H either with the variable it updates taken at its
-    new value (implicit) or at its input (explicit)::
+    new value (implicit) or at its input (explicit):
 
         kick   p* = p - c dH/dq(q, p*)   or   p* = p - c dH/dq(q, p),
         drift  q* = q + c dH/dp(q*, p)   or   q* = q + c dH/dp(q, p).
 
-    For a separable system, H = K(p) + V(q), the two forms coincide and
-    every substep is explicit. Otherwise the implicit forms are solved by
-    fixed-point iteration, so subclasses set the attributes xtol and
-    maxiter.
+    For a separable system, H = K(p) + V(q), the two forms coincide
+    and every substep is explicit. Otherwise the implicit forms are
+    solved by fixed-point iteration, so subclasses set the attributes
+    xtol and maxiter.
     '''
 
     @staticmethod

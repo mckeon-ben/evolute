@@ -5,10 +5,9 @@
 `evolute` provides one-step integrators for Hamiltonian systems. Its
 central method, `EnergyVolumeSplit`, conserves energy and preserves
 phase-space volume exactly, for systems with two or more degrees of
-freedom. It is not symplectic, which is what allows energy and volume
-preservation at once. Symplectic and discrete gradient methods are
-included as comparison baselines, alongside scripts for three test
-problems.
+freedom. Symplectic, discrete gradient and McLachlan–Quispel methods
+are included as comparison baselines, alongside scripts for three
+test problems.
 
 ## Contents
 
@@ -25,7 +24,7 @@ problems.
 
 ## Installation
 
-`evolute` needs Python 3.9 or later, NumPy, SciPy and matplotlib:
+`evolute` needs Python 3.9 or later, NumPy and SciPy:
 
 ```bash
 git clone https://github.com/mckeon-ben/evolute.git
@@ -34,9 +33,10 @@ pip install .
 ```
 
 Use `pip install -e .` instead to work on the code in place. The
-scripts in `examples/` need nothing more by default; only the optional
-`--thesis` and `--journal` figure layouts of `plotting.py` need a LaTeX
-installation; see [Examples](#examples).
+simulation scripts in `examples/` need nothing more. Drawing the
+figures needs matplotlib, which `pip install '.[examples]'` adds, and
+only the optional `--thesis` and `--journal` layouts of `plotting.py`
+need a LaTeX installation. See [Examples](#examples).
 
 ## Quick start
 
@@ -87,7 +87,12 @@ A system is built from:
 - optionally `separable`, which records whether *T* is independent of
   *q*. It defaults to `True` when *T* is omitted and `False` when it is
   supplied, so pass `True` for a supplied *T* of the momenta alone;
-- optionally a display `name`.
+- optionally a display `name`;
+- optionally `transform`, a canonical matrix *S* with `x = S z`,
+  naming a second frame that some method needs the Hamiltonian in.
+  Nothing has to be rewritten there: `to_working`, `from_working` and
+  `working_grad_H` reach it, the last by the chain rule from `grad_H`.
+  The methods in the package all work in *z* and ignore it.
 
 Letting *T* depend on *q* admits curvilinear coordinates. In
 cylindrical coordinates `(R, z, phi)`, for example, an axisymmetric
@@ -117,11 +122,21 @@ every step, as in the [quick start](#quick-start).
 | Energy-volume split | `EnergyVolumeSplit` | 1, 2, 4 | exact  | exact  |
 | Symplectic          | `Symplectic`        | 1, 2, 4 | no     | exact  |
 | Itoh–Abe            | `ItohAbe`           | 1, 2, 4 | exact  | no     |
+| McLachlan–Quispel   | `McLachlanQuispel`  | 1, 2, 4 | exact  | exact  |
 
 `EnergyVolumeSplit` and `ItohAbe` are implicit; the `Symplectic`
 methods are explicit for a separable system, and otherwise take the
 implicit forms of Hairer, Lubich and Wanner, solved by fixed-point
-iteration.
+iteration. `McLachlanQuispel` is effectively explicit, each substep
+being a 2 x 2 linear solve.
+
+`McLachlanQuispel` carries a hypothesis the others do not: *H* must
+be quadratic in each pair `(q_i, p_i)` separately. No system class
+checks it, so it is the caller's to keep, and the method is silently
+wrong without it. It takes any system, reaching the frame it needs
+through `to_working` and `from_working`. Of the three test problems
+only Hénon–Heiles qualifies, and only after the change of variables
+that script sets up.
 
 "Exact" means up to round-off, and for the implicit methods up to the
 solver tolerance `xtol`. The symplectic methods do not conserve energy,
@@ -131,27 +146,28 @@ drifting.
 ### Orders
 
 Each class takes `order`, which is 1, 2 or 4. It defaults to 2 for
-`EnergyVolumeSplit` and `Symplectic`, and to 1 for `ItohAbe`, whose
-first-order map is the classical method. At orders 1, 2 and 4 the
-`Symplectic` methods are symplectic Euler, Störmer–Verlet and
-Forest–Ruth.
+`EnergyVolumeSplit`, `Symplectic` and `McLachlanQuispel`, and to 1 for
+`ItohAbe`, whose first-order map is the classical method. At orders 1,
+2 and 4 the `Symplectic` methods are symplectic Euler, Störmer–Verlet
+and Forest–Ruth.
 
-`EnergyVolumeSplit` and `Symplectic` reach their higher orders by
-composing the first-order map *M*. Order 2 is `M*_{h/2} o M_{h/2}`,
-half a step of *M* followed by half a step of its adjoint *M*\*, which
-is symmetric and therefore of even order. Order 4 composes that
-symmetric map three times, at step lengths chosen to ensure
-third-order errors vanish. The construction needs a symmetric base
-map, which is why it builds on order 2 and not on *M*, and one of its
-three step lengths is negative, so a fourth-order step runs partly
-backwards in time.
+`EnergyVolumeSplit`, `Symplectic` and `McLachlanQuispel` reach their
+higher orders by composing the first-order map *M*. Order 2 is
+`M*_{h/2} o M_{h/2}`, half a step of *M* followed by half a step of
+its adjoint *M*\*, which is symmetric and therefore of even order.
+Order 4 composes that symmetric map three times, at step lengths
+chosen to ensure third-order errors vanish. The construction needs a
+symmetric base map, which is why it builds on order 2 and not on *M*,
+and one of its three step lengths is negative, so a fourth-order step
+runs partly backwards in time.
 
 Energy, volume and symplecticity are inherited by such a composition,
 since every factor has them at any step length and either sign; only
 the `Symplectic` methods are symplectic.
 
 For `Symplectic`, *M* is symplectic Euler, which applies the kick
-first, and *M*\* applies the drift first.
+first, and *M*\* applies the drift first. For `McLachlanQuispel`, *M*
+sweeps the pairs in index order and *M*\* sweeps them in reverse.
 
 `ItohAbe` reaches order 2 differently. Its first-order map sweeps the
 coordinates in increasing order; sweeping them in reverse gives the
@@ -165,7 +181,7 @@ jump of that symmetric map.
 
 One step is the conjugation `Phi = Psi^{-1} o M o Psi`.
 
-1. *Ψ* replaces the pair `(p1, p2)` by the energy `E = H(q, p)` and
+1. *Psi* replaces the pair `(p1, p2)` by the energy `E = H(q, p)` and
    the angle `phi = atan2(p2, p1)`. It is not canonical, but it has
    unit Jacobian.
 2. *M* holds *E* fixed and composes symplectic Euler substeps, each
@@ -177,7 +193,7 @@ One step is the conjugation `Phi = Psi^{-1} o M o Psi`.
 3. `Psi^{-1}` rebuilds `(p1, p2)` on the level set `H = E`.
 
 Energy is conserved because *E* is a variable that no substep changes.
-Volume is preserved because *Ψ* and every substep have unit
+Volume is preserved because *Psi* and every substep have unit
 Jacobian. Energy and area are never required to be preserved in the
 same plane, which is why the method can have both properties without
 being symplectic. The module docstring of `energy_volume_split.py`
@@ -207,8 +223,8 @@ the energy error:
 | Script                     | System                                        |
 | -------------------------- | --------------------------------------------- |
 | `kepler.py`                | Planar Kepler problem                         |
-| `henon_heiles.py`          | Hénon–Heiles system                           |
-| `logarithmic_potential.py` | Logarithmic potential, `n = 3`, not separable |
+| `henon_heiles.py`          | Hénon–Heiles system, also McLachlan–Quispel   |
+| `logarithmic_potential.py` | Logarithmic potential, `n = 3`                |
 
 `plotting.py` turns the data files into error estimates, observed
 orders and figures, each pairing the energy error against time with
@@ -251,12 +267,14 @@ README.md
 LICENSE
 evolute/
     __init__.py                 public API
-    system.py                   HamiltonianSystem
+    system.py                   System, HamiltonianSystem
     integrator.py               OneStepMethod, PartitionedMethod,
                                 ResidualMethod, integrate, evolve
     energy_volume_split.py      EnergyVolumeSplit
     symplectic.py               Symplectic (baseline)
-    discrete_gradient.py        ItohAbe (baseline)
+    discrete_gradient.py        DiscreteGradientMethod,
+                                ItohAbe (baseline)
+    mclachlan_quispel.py        McLachlanQuispel (baseline)
 examples/
     <test problem>.py           three simulation scripts
     plotting.py                 error estimates and figures
@@ -284,6 +302,9 @@ MIT; see [LICENSE](LICENSE).
 - Itoh, T. and Abe, K., 1988. Hamiltonian-conserving discrete
   canonical equations based on variational difference quotients.
   *Journal of Computational Physics, 76*(1), pp.85-102.
+- McLachlan, R.I. and Quispel, G.R.W., 2003. Geometric integration
+  of conservative polynomial ODEs. *Applied Numerical
+  Mathematics, 45*(4), pp.411-418.
 - Tupper, P.F., 2006. A Non-Existence Result for Hamiltonian
   Integrators. *arXiv preprint math/0607641*.
 - Yoshida, H., 1990. Construction of higher order symplectic

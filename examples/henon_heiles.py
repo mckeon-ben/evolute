@@ -4,6 +4,9 @@ Henon-Heiles system.
 Integrates every method over a fixed time at a sequence of step counts,
 and over a long run at a single step size, then writes the final states
 and the energy history to a JSON data file.
+
+Quadratic in each pair (q_i, p_i) in the frame of biquadratic_frame()
+below, so the one example McLachlan and Quispel's method can also run.
 '''
 
 import json
@@ -14,7 +17,7 @@ import numpy as np
 
 from evolute import (
     EnergyVolumeSplit, evolve, HamiltonianSystem, integrate, ItohAbe,
-    Symplectic,
+    McLachlanQuispel, Symplectic,
 )
 
 
@@ -24,7 +27,7 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         'data')
 DATA_FILE = os.path.join(DATA_DIR, 'henon_heiles.json')
 
-# Names the figure.
+# Identifies the run in the data file and the printed report.
 EXPERIMENT = 'Henon-Heiles system'
 
 # Cubic coupling and initial state (q1, q2, p1, p2).
@@ -34,25 +37,50 @@ Z_START = np.array([0.1, -0.2, 0.3, 0.15])
 # Final time of the convergence study.
 T = 8.0
 
+
+def biquadratic_frame():
+    '''
+    The canonical frame in which the Hamiltonian is biquadratic.
+
+    McLachlan and Quispel's Proposition 1: a homogeneous cubic can be
+    made biquadratic by a linear change of variables exactly when it
+    has n linearly independent real roots.
+
+    Returns
+    -------
+    np.ndarray
+        The canonical matrix S with x = S z, shape (4, 4).
+    '''
+    root3 = np.sqrt(3.0)
+    A = np.array([[1.0, 1.0], [0.0, root3]])
+    S = np.zeros((4, 4))
+    S[:2, :2] = np.linalg.inv(A)
+    S[2:, 2:] = A.T
+    return S
+
+
 # Each order has its own step counts; the finest is the yardstick, so
 # N counts are drawn at N - 1 step sizes.
 FIRST_ORDER_METHODS = {
     'Symplectic Euler': Symplectic(order=1),
-    'Itoh-Abe': ItohAbe(order=1),
+    'Itoh–Abe': ItohAbe(order=1),
     'Energy-volume split': EnergyVolumeSplit(order=1),
+    'McLachlan–Quispel': McLachlanQuispel(order=1),
 }
 SECOND_ORDER_METHODS = {
-    'Störmer-Verlet': Symplectic(order=2),
-    'Symmetrized Itoh-Abe': ItohAbe(order=2),
+    'Störmer–Verlet': Symplectic(order=2),
+    'Symmetrized Itoh–Abe': ItohAbe(order=2),
     'Symmetric energy-volume split': EnergyVolumeSplit(order=2),
+    'Symmetric McLachlan–Quispel': McLachlanQuispel(order=2),
 }
 FOURTH_ORDER_METHODS = {
-    'Forest-Ruth': Symplectic(order=4),
-    'Itoh-Abe triple jump': ItohAbe(order=4),
+    'Forest–Ruth': Symplectic(order=4),
+    'Itoh–Abe triple jump': ItohAbe(order=4),
     'Energy-volume split triple jump': EnergyVolumeSplit(order=4),
+    'McLachlan–Quispel triple jump': McLachlanQuispel(order=4),
 }
 
-# One entry per figure column: label, methods, step counts.
+# One entry per order: label, methods, step counts.
 FAMILIES = [
     ('1st order', FIRST_ORDER_METHODS,
      [8192, 16384, 32768, 65536, 131072, 262144]),
@@ -62,9 +90,8 @@ FAMILIES = [
      [128, 256, 512, 1024, 2048, 4096]),
 ]
 
-# Long run for the energy history, every step of it. A step coarser
-# than the convergence study needs lifts the symplectic energy error
-# clear of the round-off floor the discrete-gradient methods sit on.
+# Long run for the energy history, every step of it. A coarser step
+# lifts the symplectic energy error clear of the round-off floor.
 ENERGY_T = 1024.0
 ENERGY_H = T / 256
 ENERGY_STEPS = round(ENERGY_T / ENERGY_H)
@@ -98,7 +125,8 @@ def henon_heiles(lam=LAMBDA):
         return np.array([x + 2.0 * lam * x * y,
                          y + lam * (x * x - y * y)])
 
-    return HamiltonianSystem(2, V, grad_V, name='Henon-Heiles')
+    return HamiltonianSystem(2, V, grad_V, name='Henon-Heiles',
+                             transform=biquadratic_frame())
 
 
 def _cartesian(z):

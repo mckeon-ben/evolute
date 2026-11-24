@@ -1,7 +1,7 @@
 '''
 Discrete gradient method (comparison baseline).
 
-A discrete gradient gbar(z0, z1) satisfies::
+A discrete gradient gbar(z0, z1) satisfies:
 
     gbar . (z1 - z0) = H(z1) - H(z0),
 
@@ -9,19 +9,6 @@ so the method z1 = z0 + h J gbar(z0, z1) gives
 H(z1) - H(z0) = h gbar . J gbar = 0, since J is skew. Energy is
 therefore conserved exactly, up to solver tolerance, for any smooth H,
 and by any composition of such maps.
-
-That identity is what conserves energy, and it holds however
-inaccurate the individual components of gbar are. A component may
-therefore be left noisy, but it may not be replaced by anything that
-does not telescope: substituting a derivative for a quotient leaks the
-difference between them straight into the energy. The leak is cubic in
-the increment, though, so a coordinate whose increment is small enough
-may be diverted for less than the energy already costs in round-off,
-and one whose increment is exactly zero must be, since the quotient
-would divide by zero. Both cases are what dz_min is for, and it is the
-solver rather than the gradient that needs them: the quotient's value
-is usable far below the point at which its derivative, which is what
-the solver builds its Jacobian from, is not.
 
 References
 ----------
@@ -43,18 +30,6 @@ from .integrator import ResidualMethod
 _DZ_MIN = np.sqrt(np.finfo(float).eps)
 '''
 Increment below which the difference quotient is diverted.
-
-Both sides of the choice are powers of the threshold. Diverting costs
-energy: the midpoint derivative differs from the quotient by the
-midpoint rule's error, and multiplying by the increment makes the leak
-cubic, so a threshold of sqrt(eps) leaks eps^(3/2) / 24 per firing, nine
-orders below the round-off the energy already carries. Keeping the
-quotient costs conditioning: its value is only mildly wrong, carrying a
-relative error of eps / dz, but the solver differentiates it, and that
-derivative carries eps / dz^2, which is noise of order one by the time
-dz reaches sqrt(eps). So sqrt(eps) is where the quotient stops being
-worth solving against and still long before diverting it can be
-measured.
 '''
 
 
@@ -62,7 +37,7 @@ class DiscreteGradientMethod(ResidualMethod):
     '''
     Implicit method z1 = z0 + h J gbar(z0, z1) for a discrete gradient.
 
-    Subclasses implement ``discrete_gradient()``.
+    Subclasses implement discrete_gradient().
 
     Parameters
     ----------
@@ -123,7 +98,7 @@ class ItohAbe(DiscreteGradientMethod):
     '''
     Itoh-Abe (coordinate increment) discrete gradient method.
 
-    The sweep from a to b is::
+    The sweep from a to b is:
 
         g_i(a, b) = [H(w_i) - H(w_{i-1})] / (b_i - a_i),
 
@@ -134,7 +109,7 @@ class ItohAbe(DiscreteGradientMethod):
     g(z1, z0); as a map it is the adjoint Phi*_h = (Phi_{-h})^{-1}.
 
     The first-order map takes gbar = g(z0, z1), which is not symmetric.
-    Order 2 takes the mean of the two sweeps::
+    Order 2 takes the mean of the two sweeps:
 
         gbar = [g(z0, z1) + g(z1, z0)] / 2,
 
@@ -158,6 +133,12 @@ class ItohAbe(DiscreteGradientMethod):
     **kwargs
         Passed to DiscreteGradientMethod (dz_min) and ResidualMethod
         (xtol).
+
+    Raises
+    ------
+    ValueError
+        If order is not 1, 2 or 4, or if reverse is True at an order
+        other than 1.
 
     Notes
     -----
@@ -256,7 +237,7 @@ class ItohAbe(DiscreteGradientMethod):
 
     def _sweep(self, system, a, b):
         '''
-        Evaluate one coordinate sweep g(a, b), in increasing index order.
+        Evaluate one coordinate sweep g(a, b), increasing index order.
 
         Costs d + 1 evaluations of H, plus one of grad H for each
         coordinate at or below dz_min.

@@ -1,7 +1,7 @@
 '''
 Energy- and volume-preserving splitting method.
 
-For H = (p1^2 + p2^2)/2 + F(q, p3, ..., pn), F = T + V, n >= 2, one
+For H = (p1^2 + p2^2) / 2 + F(q, p3, ..., pn), F = T + V, n >= 2, one
 step is the conjugation Phi = Psi^{-1} o M o Psi, where:
 
 Psi : (q, p) -> (E, phi, q, p3, ..., pn),  E = H(q, p),
@@ -16,19 +16,12 @@ M   : holds E fixed and composes symplectic Euler substeps, each acting
         (q1, phi)   planar Hamiltonian K1 =  rho sin(phi) = p2,
         (q2, phi)   planar Hamiltonian K2 = -rho cos(phi) = -p1,
         (q', p')    the remaining pairs k >= 3, Hamiltonian F.
-      Each substep has unit Jacobian and leaves E unchanged. The (q', p')
-      substep is explicit when F is separable, and otherwise solved by
-      fixed-point iteration.
+      Each substep has unit Jacobian and leaves E unchanged. The
+      (q', p') substep is explicit when F is separable, and otherwise
+      solved by fixed-point iteration.
 
 Hence Phi conserves H exactly (to round-off) and preserves phase-space
-volume exactly; it is not symplectic. The first-order method is M; the
-symmetric second-order method is M*_{h/2} o M_{h/2}, with M* the
-adjoint (substeps reversed, each replaced by its adjoint Euler
-variant); the fourth-order method applies that symmetric map at the
-three triple-jump step lengths. Energy and volume are inherited by
-any such composition, since every factor conserves them.
-
-The change of variables is singular where p1 = p2 = 0.
+volume exactly. The change of variables is singular where p1 = p2 = 0.
 
 References
 ----------
@@ -67,6 +60,11 @@ class EnergyVolumeSplit(OneStepMethod):
     maxiter : int, optional
         Iteration limit for the scalar implicit equations and the
         fixed-point iteration. Default 100.
+
+    Raises
+    ------
+    ValueError
+        If order is not 1, 2 or 4.
 
     Notes
     -----
@@ -343,7 +341,8 @@ class EnergyVolumeSplit(OneStepMethod):
             Updated angle phi.
         '''
         # (q1, phi), K1 = rho(q1) sin(phi):
-        #   phi* = phi + h F_q1 sin(phi*) / rho,  q1* = q1 + h rho cos(phi*)
+        #   phi* = phi + h F_q1 sin(phi*) / rho,
+        #   q1* = q1 + h rho cos(phi*)
         rho = self._rho(system, E, q, pr)
         c = h * self._grad_F(system, q, pr)[0][0] / rho
         phi0 = phi
@@ -351,7 +350,8 @@ class EnergyVolumeSplit(OneStepMethod):
         q[0] += h * rho * np.cos(phi)
 
         # (q2, phi), K2 = -rho(q2) cos(phi):
-        #   phi* = phi - h F_q2 cos(phi*) / rho,  q2* = q2 + h rho sin(phi*)
+        #   phi* = phi - h F_q2 cos(phi*) / rho,
+        #   q2* = q2 + h rho sin(phi*)
         rho = self._rho(system, E, q, pr)
         c = h * self._grad_F(system, q, pr)[0][1] / rho
         phi0 = phi
@@ -360,7 +360,7 @@ class EnergyVolumeSplit(OneStepMethod):
 
         # (q', p'), k >= 3, Hamiltonian F:
         #   p'* = p' - h F_q'(q, p'*),  q'* = q' + h F_p'(q, p'*)
-        # A kick then a drift when F is separable.
+        # The kick is explicit when F is separable.
         if system.n > 2:
             p0 = pr.copy()
 
@@ -404,7 +404,7 @@ class EnergyVolumeSplit(OneStepMethod):
         '''
         # (q', p'), k >= 3, Hamiltonian F:
         #   q'* = q' + h F_p'(q*, p'),  p'* = p' - h F_q'(q*, p')
-        # A drift then a kick when F is separable.
+        # The drift is explicit when F is separable.
         if system.n > 2:
             q0 = q[2:].copy()
             trial = q.copy()

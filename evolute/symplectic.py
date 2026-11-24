@@ -32,7 +32,7 @@ class Symplectic(PartitionedMethod):
 
     M_h applies the kick first, and its adjoint M*_h applies the drift
     first. Each map evaluates both derivatives of H at a single point,
-    (q0, p1) for M and (q1, p0) for M*::
+    (q0, p1) for M and (q1, p0) for M*:
 
         M  : p1 = p0 - h dH/dq(q0, p1),  q1 = q0 + h dH/dp(q0, p1),
         M* : q1 = q0 + h dH/dp(q1, p0),  p1 = p0 - h dH/dq(q1, p0),
@@ -55,6 +55,11 @@ class Symplectic(PartitionedMethod):
     maxiter : int, optional
         Iteration limit for the fixed-point iteration. Default 100.
 
+    Raises
+    ------
+    ValueError
+        If order is not 1, 2 or 4.
+
     Notes
     -----
     - First-, second- or fourth-order accurate in h
@@ -68,7 +73,7 @@ class Symplectic(PartitionedMethod):
         if order not in (1, 2, 4):
             raise ValueError(f'order must be 1, 2 or 4, got {order}')
         self.order = order
-        self.name = {1: 'Symplectic Euler', 2: 'Störmer-Verlet',
+        self.name = {1: 'Symplectic Euler', 2: 'Stormer-Verlet',
                      4: 'Forest-Ruth'}[order]
         self.xtol = xtol
         self.maxiter = maxiter
